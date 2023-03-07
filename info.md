@@ -57,7 +57,7 @@ This readme and some supporting HACS elements were generated from [@oncleben31](
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
 [discord]: https://discord.gg/Qa5fW2R
 [discord-shield]: https://img.shields.io/discord/330944238910963714.svg?style=for-the-badge
-[oolerlogo]: oolerlogo@2x.png
+[oolerlogo]: logo@2x.png
 [forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge
 [forum]: https://community.home-assistant.io/
 [license-shield]: https://img.shields.io/github/license/PostLogical/ooler.svg?style=for-the-badge
