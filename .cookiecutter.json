@@ -1,0 +1,11 @@
+{
+  "_output_dir": "/Users/robbyg/Documents/Coding/HASS",
+  "_template": "gh:oncleben31/cookiecutter-homeassistant-custom-component",
+  "class_name_prefix": "Ooler",
+  "domain_name": "ooler",
+  "friendly_name": "Ooler",
+  "github_user": "PostLogical",
+  "project_name": "ooler",
+  "test_suite": "yes",
+  "version": "2023.3.7"
+}
