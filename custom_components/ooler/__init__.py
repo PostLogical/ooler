@@ -1,22 +1,21 @@
 """The Ooler Sleep System integration."""
 from __future__ import annotations
 
-from ooler_ble_client import OolerBLEDevice
-
 from homeassistant.components.bluetooth import (
+    BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
-    BluetoothChange,
     async_ble_device_from_address,
     async_register_callback,
     async_track_unavailable,
 )
 from homeassistant.components.bluetooth.match import ADDRESS, BluetoothCallbackMatcher
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STOP
-from homeassistant.core import HomeAssistant, Event, callback, CoreState
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.core import CoreState, Event, HomeAssistant, callback
+from ooler_ble_client import OolerBLEDevice
 
-from .const import DOMAIN, CONF_MODEL, _LOGGER
+from .const import _LOGGER, CONF_MODEL, DOMAIN
 from .models import OolerData
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
