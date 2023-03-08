@@ -1,7 +1,6 @@
 {
   "name": "Ooler",
   "hacs": "1.31.0",
-  "domains": ["climate", "sensor", "switch"],
-  "iot_class": "Local Push",
-  "homeassistant": "2023.2.3"
+  "homeassistant": "2023.2.3",
+  "zip_release": true
 }
