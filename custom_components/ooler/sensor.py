@@ -3,15 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
-
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import (
-    UnitOfPower,
-)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
-
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 

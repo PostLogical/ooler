@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-
 from typing import Any
 
+from bleak.backends.device import BLEDevice
 from ooler_ble_client import OolerBLEDevice, test_connection
-
 import voluptuous as vol
 
 from homeassistant.components.bluetooth import (
@@ -14,13 +13,11 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
     async_last_service_info,
 )
-from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
 from homeassistant.config_entries import ConfigFlow
+from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
 from homeassistant.data_entry_flow import FlowResult
 
-from bleak.backends.device import BLEDevice
-
-from .const import DOMAIN, CONF_MODEL  # , _LOGGER
+from .const import CONF_MODEL, DOMAIN  # , _LOGGER
 
 
 class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -209,7 +206,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         assert self._pairing_task is not None
         try:
             await test_connection(bledevice)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             self._pairing_task.cancel()
         else:
             self._paired = True

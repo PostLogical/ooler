@@ -1,32 +1,29 @@
-"""Support for Ooler Sleep System controls"""
+"""Support for Ooler Sleep System controls."""
 from __future__ import annotations
 
-from typing import Any
 from asyncio import sleep
+from typing import Any
 
 from homeassistant.components.climate import (
-    HVACMode,
-    HVACAction,
     ClimateEntity,
     ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
 )
-
 from homeassistant.config_entries import ConfigEntry
-
 from homeassistant.const import (
-    UnitOfTemperature,
+    ATTR_TEMPERATURE,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
-    ATTR_TEMPERATURE,
+    UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_platform
-
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import _LOGGER, DOMAIN, DEFAULT_MIN_TEMP, DEFAULT_MAX_TEMP
+from .const import _LOGGER, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from .models import OolerData
 
 IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
@@ -60,7 +57,7 @@ async def async_setup_entry(
 
 
 class Ooler(ClimateEntity, RestoreEntity):
-    """Representation of Ooler Thermostat"""
+    """Representation of Ooler Thermostat."""
 
     _attr_has_entity_name = True
     _attr_name = None
@@ -70,6 +67,7 @@ class Ooler(ClimateEntity, RestoreEntity):
     _attr_max_temp = DEFAULT_MAX_TEMP
 
     def __init__(self, data: OolerData) -> None:
+        """Initialize the climate entity."""
         self._data = data
         self._attr_unique_id = f"ooler_{data.address}_thermostat"
         self._attr_device_info = DeviceInfo(
@@ -82,6 +80,7 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     @property
     def name(self) -> str | None:
+        """Return entity name."""
         return self._attr_name
 
     @property
@@ -106,7 +105,7 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     @property
     def target_temperature_step(self) -> float | None:
-        """Return the supported step of target temperature"""
+        """Return the supported step of target temperature."""
         return self._attr_target_temperature_step
 
     @property
@@ -134,9 +133,7 @@ class Ooler(ClimateEntity, RestoreEntity):
         """Return current operation."""
         if self._data.client.state.power:
             return HVACMode.AUTO
-        else:
-            return HVACMode.OFF
-        return None
+        return HVACMode.OFF
 
     @property
     def hvac_modes(self) -> list[HVACMode]:
@@ -145,20 +142,18 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     @property
     def hvac_action(self) -> HVACAction | None:
-        """Return the current HVAC action (heating, cooling)"""
+        """Return the current HVAC action (heating, cooling)."""
         hvacmode = self.hvac_mode
         if hvacmode == HVACMode.OFF:
             return HVACAction.OFF
-        else:
-            settemp = self.target_temperature
+        settemp = self.target_temperature
         currenttemp = self.current_temperature
         if currenttemp is not None and settemp is not None:
             if currenttemp > settemp:
                 return HVACAction.COOLING
-            elif currenttemp < settemp:
+            if currenttemp < settemp:
                 return HVACAction.HEATING
-        else:
-            return HVACAction.IDLE
+        return HVACAction.IDLE
 
     @property
     def supported_features(self) -> ClimateEntityFeature:
@@ -218,7 +213,7 @@ class Ooler(ClimateEntity, RestoreEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             raise ValueError("No target temperature provided.")
-        elif temp == self.target_temperature:
+        if temp == self.target_temperature:
             return
         client = self._data.client
         if not client.is_connected:
