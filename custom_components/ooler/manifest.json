@@ -1,11 +1,7 @@
 {
   "domain": "ooler",
   "name": "Ooler",
-  "bluetooth": [
-    {
-      "local_name": "OOLER-*"
-    }
-  ],
+  "bluetooth": [{"local_name": "OOLER-*"}],
   "codeowners": ["@PostLogical"],
   "config_flow": true,
   "dependencies": ["bluetooth_adapters"],
