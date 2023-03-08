@@ -1,7 +1,6 @@
 {
   "domain": "ooler",
   "name": "Ooler",
-  "version": "2023.3.6",
   "bluetooth": [
     {
       "local_name": "OOLER-*"
@@ -17,5 +16,6 @@
   "requirements": ["ooler_ble_client==0.7.0"],
   "integration_type": "device",
   "ssdp": [],
+  "version": "2023.3.7",
   "zeroconf": []
 }
