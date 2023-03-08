@@ -193,7 +193,7 @@ class Ooler(ClimateEntity, RestoreEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_power(power)
-        _LOGGER.info("Setting HVACMode to: %s", hvac_mode)
+        _LOGGER.debug("Setting HVACMode to: %s", hvac_mode)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
@@ -206,7 +206,7 @@ class Ooler(ClimateEntity, RestoreEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_mode(fan_mode)
-        _LOGGER.info("Setting fan mode to: %s", fan_mode)
+        _LOGGER.debug("Setting fan mode to: %s", fan_mode)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -220,7 +220,7 @@ class Ooler(ClimateEntity, RestoreEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_temperature(int(temp))
-        _LOGGER.info("Setting temperature to :%s", temp)
+        _LOGGER.debug("Setting temperature to :%s", temp)
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
@@ -229,7 +229,7 @@ class Ooler(ClimateEntity, RestoreEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_clean(True)
-        _LOGGER.info("Cleaning the device: %s", self.name)
+        _LOGGER.debug("Cleaning the device: %s", self.name)
 
     # This service function is necessary because the Bluetooth connection is active, which means when Hass is connected to Ooler, nothing else can connect to Ooler including the phone app.
     async def async_pause_client(self, sec_delay: int = 60) -> None:

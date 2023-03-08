@@ -76,7 +76,7 @@ class OolerCleaningSwitch(SwitchEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_clean(True)
-        _LOGGER.info("Cleaning the device: %s", self.name)
+        _LOGGER.debug("Cleaning the device: %s", self.name)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Start cleaning the unit."""
@@ -85,7 +85,7 @@ class OolerCleaningSwitch(SwitchEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_clean(False)
-        _LOGGER.info("Stopping cleaning process: %s", self.name)
+        _LOGGER.debug("Stopping cleaning process: %s", self.name)
 
 
 class OolerConnectionSwitch(SwitchEntity):
