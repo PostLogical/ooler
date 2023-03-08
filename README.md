@@ -30,7 +30,7 @@ This custom Home Assistant component will control your Ooler Sleep System over a
 
 ### HACS (Once available)
 
-1. Find the integration as `Google Photos`
+1. Find the integration as `Ooler`
 2. Click install.
 3. Restart Home Assistant.
 
