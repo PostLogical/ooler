@@ -177,10 +177,10 @@ class Ooler(ClimateEntity, RestoreEntity):
             self._data.client.register_callback(self._handle_state_update)
         )
 
-    async def async_update(self) -> None:
-        """Grab the state from device and update HA."""
-        await self._data.client.async_poll()
-        self._async_write_ha_state()
+    # async def async_update(self) -> None:
+    #     """Grab the state from device and update HA."""
+    #     await self._data.client.async_poll()
+    #     self._async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
