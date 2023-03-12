@@ -1,6 +1,5 @@
 {
   "name": "Ooler",
   "hacs": "1.31.0",
-  "homeassistant": "2023.2.3",
-  "zip_release": true
+  "homeassistant": "2023.2.3"
 }
