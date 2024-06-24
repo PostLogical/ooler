@@ -30,7 +30,6 @@ IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
 
 SERVICE_PAUSE = "pause_service"
 SERVICE_CLEAN = "clean_service"
-SUPPORT_FLAGS = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
 
 
 async def async_setup_entry(
@@ -66,6 +65,14 @@ class Ooler(ClimateEntity, RestoreEntity):
     _attr_min_temp = DEFAULT_MIN_TEMP
     _attr_max_temp = DEFAULT_MAX_TEMP
 
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.FAN_MODE
+        | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.TURN_ON
+    )
+    _enable_turn_on_off_backwards_compatibility = False
+
     def __init__(self, data: OolerData) -> None:
         """Initialize the climate entity."""
         self._data = data
@@ -75,7 +82,6 @@ class Ooler(ClimateEntity, RestoreEntity):
         )
         self._operation_list: list[HVACMode] = [HVACMode.OFF, HVACMode.AUTO]
         self._fan_modes: list[str] = ["Silent", "Regular", "Boost"]
-        self._attr_support_flags = SUPPORT_FLAGS
         super().__init__()
 
     @property
@@ -158,7 +164,7 @@ class Ooler(ClimateEntity, RestoreEntity):
     @property
     def supported_features(self) -> ClimateEntityFeature:
         """Return the list of supported features."""
-        return self._attr_support_flags
+        return self._attr_supported_features
 
     @property
     def cleaning(self) -> bool | None:
