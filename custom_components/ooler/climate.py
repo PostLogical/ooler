@@ -122,7 +122,11 @@ class Ooler(ClimateEntity, RestoreEntity):
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        return self._data.client.state.actual_temperature
+        actualtemp_raw = self._data.client.state.actual_temperature
+        if actualtemp_raw is not None:
+            actualtemp_fahrenheit = (9/5 * actualtemp_raw) + 32
+            return actualtemp_fahrenheit
+        return None
 
     @property
     def fan_mode(self) -> str | None:
