@@ -23,7 +23,7 @@ async def async_setup_entry(
     """Set up the Ooler sensors."""
     data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
     entities = [
-        OolerWattageSensorEntity(data),
+        # OolerWattageSensorEntity(data),
         OolerWaterLevelSensorEntity(data),
     ]
     async_add_entities(entities)
