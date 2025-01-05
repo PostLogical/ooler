@@ -10,8 +10,8 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/PostLogical/ooler/issues",
-  "requirements": ["ooler_ble_client==0.7.2b2"],
+  "requirements": ["ooler_ble_client==0.7.2b3"],
   "ssdp": [],
-  "version": "2025.1.1-beta-2",
+  "version": "2025.1.1-beta-6",
   "zeroconf": []
 }
