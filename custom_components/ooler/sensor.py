@@ -59,29 +59,29 @@ class OolerSensorEntity(SensorEntity):
         )
 
 
-class OolerWattageSensorEntity(OolerSensorEntity):
-    """Representation of an Ooler wattage sensor."""
+# class OolerWattageSensorEntity(OolerSensorEntity):
+#     """Representation of an Ooler wattage sensor."""
 
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
+#     _attr_native_unit_of_measurement = UnitOfPower.WATT
+#     _attr_device_class = SensorDeviceClass.POWER
 
-    def __init__(self, data: OolerData) -> None:
-        """Initialize the wattage sensor entity."""
-        super().__init__(data)
-        self._attr_name = "Wattage"
-        self._attr_unique_id = f"{data.address}_wattage_sensor"
+#     def __init__(self, data: OolerData) -> None:
+#         """Initialize the wattage sensor entity."""
+#         super().__init__(data)
+#         self._attr_name = "Wattage"
+#         self._attr_unique_id = f"{data.address}_wattage_sensor"
 
-    @property
-    def native_value(self) -> int | None:
-        """Return the wattage of the pump."""
-        if self._data.client.state is not None:
-            return self._data.client.state.pump_watts
-        return None
+#     @property
+#     def native_value(self) -> int | None:
+#         """Return the wattage of the pump."""
+#         if self._data.client.state is not None:
+#             return self._data.client.state.pump_watts
+#         return None
 
-    @property
-    def suggested_unit_of_measurement(self) -> str | None:
-        """Return the suggested unit of measurement for power."""
-        return UnitOfPower.WATT
+#     @property
+#     def suggested_unit_of_measurement(self) -> str | None:
+#         """Return the suggested unit of measurement for power."""
+#         return UnitOfPower.WATT
 
 
 class OolerWaterLevelSensorEntity(OolerSensorEntity):
