@@ -22,70 +22,70 @@ async def async_setup_entry(
     """Set up the Ooler switches."""
     data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
     entities = [
-        OolerCleaningSwitch(data),
+        # OolerCleaningSwitch(data),
         OolerConnectionSwitch(data),
     ]
     async_add_entities(entities)
 
 
-class OolerCleaningSwitch(SwitchEntity):
-    """Representation of Ooler Cleaning switch."""
+# class OolerCleaningSwitch(SwitchEntity):
+#     """Representation of Ooler Cleaning switch."""
 
-    _attr_has_entity_name = True
+#     _attr_has_entity_name = True
 
-    def __init__(self, data: OolerData) -> None:
-        """Initialize the switch entity."""
-        self._data = data
-        self._attr_name = "Cleaning"
-        self._attr_unique_id = f"{data.address}_cleaning_binary_sensor"
-        self._attr_device_info = DeviceInfo(
-            name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
-        )
+#     def __init__(self, data: OolerData) -> None:
+#         """Initialize the switch entity."""
+#         self._data = data
+#         self._attr_name = "Cleaning"
+#         self._attr_unique_id = f"{data.address}_cleaning_binary_sensor"
+#         self._attr_device_info = DeviceInfo(
+#             name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
+#         )
 
-    @property
-    def available(self) -> bool:
-        """Determine if the entity is available."""
-        return self._data.client.is_connected
+#     @property
+#     def available(self) -> bool:
+#         """Determine if the entity is available."""
+#         return self._data.client.is_connected
 
-    @callback
-    def _handle_state_update(self, *args: Any) -> None:
-        """Handle state update."""
-        self.async_write_ha_state()
+#     @callback
+#     def _handle_state_update(self, *args: Any) -> None:
+#         """Handle state update."""
+#         self.async_write_ha_state()
 
-    async def async_added_to_hass(self) -> None:
-        """Determine state on start up and register callback."""
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._data.client.register_callback(self._handle_state_update)
-        )
+#     async def async_added_to_hass(self) -> None:
+#         """Determine state on start up and register callback."""
+#         await super().async_added_to_hass()
+#         self.async_on_remove(
+#             self._data.client.register_callback(self._handle_state_update)
+#         )
 
-    @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
+#     @property
+#     def name(self) -> str | None:
+#         """Return entity name."""
+#         return self._attr_name
 
-    @property
-    def is_on(self) -> bool | None:
-        """Return true if the device is cleaning."""
-        return self._data.client.state.clean
+#     @property
+#     def is_on(self) -> bool | None:
+#         """Return true if the device is cleaning."""
+#         return self._data.client.state.clean
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(True)
-        _LOGGER.debug("Cleaning the device: %s", self.name)
+#     async def async_turn_on(self, **kwargs: Any) -> None:
+#         """Start cleaning the unit."""
+#         client = self._data.client
+#         if not client.is_connected:
+#             _LOGGER.debug("Client not connected. Attempting to connect")
+#             await client.connect()
+#         await client.set_clean(True)
+#         _LOGGER.debug("Cleaning the device: %s", self.name)
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(False)
-        _LOGGER.debug("Stopping cleaning process: %s", self.name)
+#     async def async_turn_off(self, **kwargs: Any) -> None:
+#         """Start cleaning the unit."""
+#         client = self._data.client
+#         if not client.is_connected:
+#             _LOGGER.debug("Client not connected. Attempting to connect")
+#             await client.connect()
+#         await client.set_clean(False)
+#         _LOGGER.debug("Stopping cleaning process: %s", self.name)
 
 
 class OolerConnectionSwitch(SwitchEntity):
