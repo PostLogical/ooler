@@ -6,18 +6,22 @@ import asyncio
 from typing import Any
 
 import voluptuous as vol
-from bleak.backends.device import BLEDevice
 from homeassistant.components.bluetooth import (
+    BluetoothChange,
+    BluetoothScanningMode,
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
     async_last_service_info,
+    async_register_callback,
 )
+from homeassistant.components.bluetooth.match import ADDRESS
 from homeassistant.config_entries import ConfigFlow
-from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
+from homeassistant.const import CONF_ADDRESS
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from ooler_ble_client import OolerBLEDevice, test_connection
+from ooler_ble_client import parse_ooler_advertisement
 
-from .const import _LOGGER, CONF_MODEL, DOMAIN
+from .const import CONF_MODEL, DOMAIN
 
 
 class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -31,8 +35,6 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_devices: dict[str, str] = {}
         self._pairing_task: asyncio.Task | None = None
         self._paired: bool = False
-        self._bledevice: BLEDevice | None = None
-        self._client: OolerBLEDevice | None = None
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
@@ -43,6 +45,16 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         if not discovery_info.name.startswith("OOLER"):
             return self.async_abort(reason="not_supported")
         self._discovery_info = discovery_info
+
+        # If the device is already advertising in pairing mode, skip the wait step.
+        adv = parse_ooler_advertisement(
+            discovery_info.name,
+            discovery_info.address,
+            discovery_info.manufacturer_data,
+        )
+        if adv and adv.is_pairing:
+            self._paired = True
+
         return await self.async_step_bluetooth_confirm()
 
     async def async_step_bluetooth_confirm(
@@ -119,9 +131,8 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             discovery_info = self._discovery_info
             if discovery_info is None:
                 return self.async_show_progress_done(next_step_id="pairing_timeout")
-            bledevice = discovery_info.device
             self._pairing_task = self.hass.async_create_task(
-                self._async_check_ooler_connection(bledevice)
+                self._async_wait_for_pairing_advertisement(discovery_info.address)
             )
             return self.async_show_progress(
                 step_id="wait_for_pairing_mode",
@@ -156,6 +167,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Inform the user that the device never entered pairing mode."""
         if user_input is not None:
+            self._pairing_task = None
             return await self.async_step_wait_for_pairing_mode()
 
         self._set_confirm_only()
@@ -164,53 +176,40 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
     def _create_ooler_entry(self, model_name: str) -> FlowResult:
         return self.async_create_entry(
             title=model_name,
-            data={CONF_MODEL: model_name},  # could require discovery_info.name instead
+            data={CONF_MODEL: model_name},
         )
 
-    # async def _async_wait_for_pairing_mode(self) -> None:
-    #     """Process advertisements until pairing mode is detected."""
-    #     in_pairing_mode: Future[bool] = Future()
+    async def _async_wait_for_pairing_advertisement(self, address: str) -> None:
+        """Watch BT advertisements until the device enters pairing mode or times out."""
+        paired_event = asyncio.Event()
 
-    #     async def device_in_pairing_mode(
-    #         device: BLEDevice,
-    #         advertisement_data: AdvertisementData,
-    #     ):
-    #         assert self._discovery_info is not None
-    #         if device.address == self._discovery_info.address:
-    #             in_pairing_mode.set_result(True)
+        @callback
+        def _advertisement_callback(
+            service_info: BluetoothServiceInfoBleak,
+            change: BluetoothChange,
+        ) -> None:
+            adv = parse_ooler_advertisement(
+                service_info.name,
+                service_info.address,
+                service_info.manufacturer_data,
+            )
+            if adv and adv.is_pairing:
+                self._paired = True
+                paired_event.set()
 
-    #     pairing_scanner = BleakScanner(
-    #         device_in_pairing_mode,
-    #         scanning_mode="passive",
-    #         bluez=BlueZScannerArgs(
-    #             or_patterns=[OrPattern(0, AdvertisementDataType.FLAGS, b"\x02")]
-    #         ),
-    #     )
+        cancel_callback = async_register_callback(
+            self.hass,
+            _advertisement_callback,
+            {ADDRESS: address},
+            BluetoothScanningMode.PASSIVE,
+        )
 
-    #     try:
-    #         _LOGGER.error("Starting Ooler scanner")
-    #         result = await pairing_scanner.start()
-    #         _LOGGER.error("Result of scanner start is: %s", result)
-    #         await asyncio.sleep(ADDITIONAL_DISCOVERY_TIMEOUT)
-    #         # _LOGGER.error("Scanner: ", pairing_scanner)
-    #         _LOGGER.error("Stopping Ooler scanner")
-    #         await pairing_scanner.stop()
-    #         raise asyncio.TimeoutError
-
-    #     finally:
-    #         self.hass.async_create_task(
-    #             self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
-    #         )
-
-    async def _async_check_ooler_connection(self, bledevice: BLEDevice) -> None:
-        """Try to connect to device and verify read/write access."""
-        await asyncio.sleep(5)
         try:
-            await test_connection(bledevice)
-            self._paired = True
-        except Exception:  # pylint: disable=broad-except
-            _LOGGER.debug("Connection test failed for %s", bledevice.address)
+            await asyncio.wait_for(paired_event.wait(), timeout=60)
+        except TimeoutError:
+            pass
         finally:
+            cancel_callback()
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
             )
