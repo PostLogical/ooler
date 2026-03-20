@@ -5,3 +5,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 python3 -m pip install --requirement requirements.txt
+
+# Run local setup if present (gitignored, for personal dev environment customization)
+if [ -f scripts/setup-local ]; then
+  bash scripts/setup-local
+fi
