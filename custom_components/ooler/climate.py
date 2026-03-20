@@ -11,11 +11,8 @@ from homeassistant.components.climate import (
     HVACAction,
     HVACMode,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_TEMPERATURE,
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -23,12 +20,10 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import _LOGGER, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
+from . import OolerConfigEntry
+from .const import _LOGGER, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP
 from .models import OolerData
-
-IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
 
 SERVICE_PAUSE = "pause_service"
 SERVICE_CLEAN = "clean_service"
@@ -36,11 +31,11 @@ SERVICE_CLEAN = "clean_service"
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: OolerConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler thermostat."""
-    data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
+    data: OolerData = config_entry.runtime_data
     entities = [Ooler(data)]
     async_add_entities(entities)
     platform = entity_platform.async_get_current_platform()
@@ -57,7 +52,7 @@ async def async_setup_entry(
     )
 
 
-class Ooler(ClimateEntity, RestoreEntity):
+class Ooler(ClimateEntity):
     """Representation of Ooler Thermostat."""
 
     _attr_has_entity_name = True
@@ -179,16 +174,11 @@ class Ooler(ClimateEntity, RestoreEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
-        """Restore state on start up and register callback."""
+        """Register callback on add."""
         await super().async_added_to_hass()
         self.async_on_remove(
             self._data.client.register_callback(self._handle_state_update)
         )
-
-    # async def async_update(self) -> None:
-    #     """Grab the state from device and update HA."""
-    #     await self._data.client.async_poll()
-    #     self._async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
@@ -203,11 +193,9 @@ class Ooler(ClimateEntity, RestoreEntity):
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
         if fan_mode not in self._fan_modes:
-            error = (
-                "Invalid fan_mode value: "
-                "Valid values are 'Silent', 'Regular', and 'Boost'"
+            _LOGGER.error(
+                "Invalid fan_mode value: Valid values are 'Silent', 'Regular', 'Boost'"
             )
-            _LOGGER.error(error)
             return
         client = self._data.client
         if not client.is_connected:
@@ -242,8 +230,8 @@ class Ooler(ClimateEntity, RestoreEntity):
     # This service function is necessary because the Bluetooth connection is active,
     # which means when Hass is connected to Ooler, nothing else can connect to Ooler
     # including the phone app.
-    async def async_pause_client(self, sec_delay: int = 60) -> None:
-        """Disconnect Hass from the device."""
+    async def async_pause_client(self) -> None:
+        """Disconnect Hass from the device for 60 seconds."""
         await self._data.client.stop()
-        await sleep(sec_delay)
+        await sleep(60)
         await self._data.client.connect()

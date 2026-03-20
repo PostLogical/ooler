@@ -5,24 +5,23 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfPower
+from homeassistant.const import PERCENTAGE, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from . import OolerConfigEntry
 from .models import OolerData
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: OolerConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler sensors."""
-    data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
+    data: OolerData = config_entry.runtime_data
     entities = [
         OolerWattageSensorEntity(data),
         OolerWaterLevelSensorEntity(data),
@@ -53,7 +52,7 @@ class OolerSensorEntity(SensorEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
-        """Restore state on start up and register callback."""
+        """Register callback on add."""
         await super().async_added_to_hass()
         self.async_on_remove(
             self._data.client.register_callback(self._handle_state_update)
@@ -79,16 +78,11 @@ class OolerWattageSensorEntity(OolerSensorEntity):
             return self._data.client.state.pump_watts
         return None
 
-    @property
-    def suggested_unit_of_measurement(self) -> str | None:
-        """Return the suggested unit of measurement for power."""
-        return UnitOfPower.WATT
-
 
 class OolerWaterLevelSensorEntity(OolerSensorEntity):
     """Representation of an Ooler water level sensor."""
 
-    _attr_native_unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = PERCENTAGE
 
     def __init__(self, data: OolerData) -> None:
         """Initialize the water level sensor entity."""
@@ -99,4 +93,6 @@ class OolerWaterLevelSensorEntity(OolerSensorEntity):
     @property
     def native_value(self) -> int | None:
         """Return the water level of the Ooler."""
-        return self._data.client.state.water_level
+        if self._data.client.state is not None:
+            return self._data.client.state.water_level
+        return None

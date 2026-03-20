@@ -17,7 +17,7 @@ from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
 from homeassistant.data_entry_flow import FlowResult
 from ooler_ble_client import OolerBLEDevice, test_connection
 
-from .const import CONF_MODEL, DOMAIN  # , _LOGGER
+from .const import _LOGGER, CONF_MODEL, DOMAIN
 
 
 class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -133,6 +133,8 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             self._pairing_task = None
             return self.async_show_progress_done(next_step_id="pairing_timeout")
         self._pairing_task = None
+        if not self._paired:
+            return self.async_show_progress_done(next_step_id="pairing_timeout")
         return self.async_show_progress_done(next_step_id="pairing_complete")
 
     async def async_step_pairing_complete(
@@ -201,15 +203,13 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
     #         )
 
     async def _async_check_ooler_connection(self, bledevice: BLEDevice) -> None:
-        """Try to connect to client and test read and write power functions."""
+        """Try to connect to device and verify read/write access."""
         await asyncio.sleep(5)
-        assert self._pairing_task is not None
         try:
             await test_connection(bledevice)
-        except Exception:  # pylint: disable=broad-except
-            self._pairing_task.cancel()
-        else:
             self._paired = True
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug("Connection test failed for %s", bledevice.address)
         finally:
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)

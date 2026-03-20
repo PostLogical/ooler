@@ -4,14 +4,11 @@
   "bluetooth": [{"local_name": "OOLER-*"}],
   "codeowners": ["@PostLogical"],
   "config_flow": true,
-  "dependencies": ["bluetooth_adapters"],
+  "dependencies": ["bluetooth", "bluetooth_adapters"],
   "documentation": "https://github.com/PostLogical/ooler",
-  "homekit": {},
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/PostLogical/ooler/issues",
-  "requirements": ["ooler_ble_client==0.7.1"],
-  "ssdp": [],
-  "version": "2024.12.1",
-  "zeroconf": []
+  "requirements": ["ooler_ble_client==0.8.0b1"],
+  "version": "2024.12.1"
 }

@@ -14,13 +14,15 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from ooler_ble_client import OolerBLEDevice
 
-from .const import CONF_MODEL, DOMAIN
+from .const import CONF_MODEL
 from .models import OolerData
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
 
+type OolerConfigEntry = ConfigEntry[OolerData]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> bool:
     """Set up Ooler from a config entry."""
     address = entry.unique_id
     assert address is not None
@@ -35,7 +37,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ) -> None:
         """Update from a ble callback."""
         client.set_ble_device(service_info.device)
-        hass.async_create_task(client.connect())
+        if not client.is_connected:
+            hass.async_create_task(client.connect())
 
     entry.async_on_unload(
         async_register_callback(
@@ -46,11 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     )
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = OolerData(
-        address,
-        model,
-        client,
-    )
+    entry.runtime_data = OolerData(address, model, client)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -64,9 +63,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

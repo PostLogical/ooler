@@ -5,23 +5,23 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import _LOGGER, DOMAIN
+from . import OolerConfigEntry
+from .const import _LOGGER
 from .models import OolerData
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: OolerConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler switches."""
-    data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
+    data: OolerData = config_entry.runtime_data
     entities = [
         OolerCleaningSwitch(data),
         OolerConnectionSwitch(data),
@@ -54,21 +54,18 @@ class OolerCleaningSwitch(SwitchEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
-        """Determine state on start up and register callback."""
+        """Register callback on add."""
         await super().async_added_to_hass()
         self.async_on_remove(
             self._data.client.register_callback(self._handle_state_update)
         )
 
     @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
-
-    @property
     def is_on(self) -> bool | None:
         """Return true if the device is cleaning."""
-        return self._data.client.state.clean
+        if self._data.client.state is not None:
+            return self._data.client.state.clean
+        return None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start cleaning the unit."""
@@ -80,7 +77,7 @@ class OolerCleaningSwitch(SwitchEntity):
         _LOGGER.debug("Cleaning the device: %s", self.name)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Start cleaning the unit."""
+        """Stop cleaning the unit."""
         client = self._data.client
         if not client.is_connected:
             _LOGGER.debug("Client not connected. Attempting to connect")
@@ -114,21 +111,16 @@ class OolerConnectionSwitch(SwitchEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
-        """Determine state on start up and register callback."""
+        """Register callback on add."""
         await super().async_added_to_hass()
         self.async_on_remove(
             self._data.client.register_callback(self._handle_state_update)
         )
 
     @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
-
-    @property
-    def is_on(self) -> bool | None:
+    def is_on(self) -> bool:
         """Return true if the device is connected."""
-        return self._data.client.state.connected
+        return self._data.client.is_connected
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Connect to the device."""
