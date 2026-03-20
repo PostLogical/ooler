@@ -21,7 +21,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from ooler_ble_client import parse_ooler_advertisement
 
-from .const import CONF_MODEL, DOMAIN
+from .const import _LOGGER, CONF_MODEL, DOMAIN
 
 
 class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -137,6 +137,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_show_progress(
                 step_id="wait_for_pairing_mode",
                 progress_action="wait_for_pairing_mode",
+                progress_task=self._pairing_task,
             )
         try:
             await self._pairing_task
@@ -188,11 +189,18 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             service_info: BluetoothServiceInfoBleak,
             change: BluetoothChange,
         ) -> None:
+            _LOGGER.debug(
+                "Ooler advertisement: name=%s address=%s manufacturer_data=%s",
+                service_info.name,
+                service_info.address,
+                service_info.manufacturer_data,
+            )
             adv = parse_ooler_advertisement(
                 service_info.name,
                 service_info.address,
                 service_info.manufacturer_data,
             )
+            _LOGGER.debug("Ooler parsed advertisement: %s", adv)
             if adv and adv.is_pairing:
                 self._paired = True
                 paired_event.set()
@@ -210,6 +218,3 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             pass
         finally:
             cancel_callback()
-            self.hass.async_create_task(
-                self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
-            )
