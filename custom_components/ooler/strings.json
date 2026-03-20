@@ -12,17 +12,27 @@
         "description": "[%key:component::bluetooth::config::step::bluetooth_confirm::description%]"
       },
       "pairing_timeout": {
-        "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device isn't connected to the mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
+        "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device is not connected to the Ooler mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
       }
     },
     "progress": {
-      "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit Ooler mobile apps.\n2. Press and hold the power button on the device. Release when the bluetooth icon starts blinking (approximately 5 seconds)."
+      "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit the Ooler mobile app.\n2. Press and hold the power button on the device. Release when the Bluetooth icon starts blinking (approximately 5 seconds)."
     },
     "abort": {
       "not_supported": "Device not supported",
       "no_devices_found": "[%key:common::config_flow::abort::no_devices_found%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "services": {
+    "pause_service": {
+      "name": "Pause connection",
+      "description": "Disconnects the Bluetooth connection to the Ooler for 60 seconds, allowing the mobile app or other controllers to connect during that time."
+    },
+    "clean_service": {
+      "name": "Clean",
+      "description": "Activates the UV light to clean the Ooler water system."
     }
   }
 }
