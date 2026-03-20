@@ -1,21 +1,20 @@
 """The Ooler Sleep System integration."""
+
 from __future__ import annotations
 
 from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
-    async_ble_device_from_address,
     async_register_callback,
-    async_track_unavailable,
 )
-from homeassistant.components.bluetooth.match import ADDRESS, BluetoothCallbackMatcher
+from homeassistant.components.bluetooth.match import ADDRESS
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
-from homeassistant.core import CoreState, Event, HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from ooler_ble_client import OolerBLEDevice
 
-from .const import _LOGGER, CONF_MODEL, DOMAIN
+from .const import CONF_MODEL, DOMAIN
 from .models import OolerData
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
@@ -46,14 +45,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             BluetoothScanningMode.ACTIVE,
         )
     )
-
-    # def _unavailable_callback(info: BluetoothServiceInfoBleak) -> None:
-    #     _LOGGER.error("%s is no longer seen", info.address)
-    #     hass.async_create_task(client.connect())
-
-    # entry.async_on_unload(
-    #     async_track_unavailable(hass, _unavailable_callback, address, connectable=True)
-    # )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = OolerData(
         address,

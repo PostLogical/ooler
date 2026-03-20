@@ -1,4 +1,5 @@
 """Support for Ooler Sleep System controls."""
+
 from __future__ import annotations
 
 from asyncio import sleep
@@ -18,7 +19,8 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_platform
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -190,10 +192,7 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
-        if hvac_mode == HVACMode.OFF:
-            power = False
-        else:
-            power = True
+        power = hvac_mode != HVACMode.OFF
         client = self._data.client
         if not client.is_connected:
             _LOGGER.debug("Client not connected. Attempting to connect")
@@ -204,7 +203,10 @@ class Ooler(ClimateEntity, RestoreEntity):
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
         if fan_mode not in self._fan_modes:
-            error = "Invalid fan_mode value: Valid values are 'Silent', 'Regular', and 'Boost'"
+            error = (
+                "Invalid fan_mode value: "
+                "Valid values are 'Silent', 'Regular', and 'Boost'"
+            )
             _LOGGER.error(error)
             return
         client = self._data.client
@@ -237,7 +239,9 @@ class Ooler(ClimateEntity, RestoreEntity):
         await client.set_clean(True)
         _LOGGER.debug("Cleaning the device: %s", self.name)
 
-    # This service function is necessary because the Bluetooth connection is active, which means when Hass is connected to Ooler, nothing else can connect to Ooler including the phone app.
+    # This service function is necessary because the Bluetooth connection is active,
+    # which means when Hass is connected to Ooler, nothing else can connect to Ooler
+    # including the phone app.
     async def async_pause_client(self, sec_delay: int = 60) -> None:
         """Disconnect Hass from the device."""
         await self._data.client.stop()

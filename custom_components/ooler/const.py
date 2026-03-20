@@ -1,4 +1,5 @@
 """Constants for the Ooler Sleep System integration."""
+
 import logging
 
 DOMAIN = "ooler"

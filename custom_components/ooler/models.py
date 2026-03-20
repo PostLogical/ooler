@@ -1,4 +1,5 @@
 """Models for the Ooler Sleep System integration."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

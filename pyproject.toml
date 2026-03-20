@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+addopts = "-qq --cov=custom_components.ooler"
+console_output_style = "count"
+
+[tool.coverage.run]
+branch = false
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100

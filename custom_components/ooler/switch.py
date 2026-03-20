@@ -1,4 +1,5 @@
 """Support for Ooler Sleep System switches."""
+
 from __future__ import annotations
 
 from typing import Any

@@ -1,13 +1,12 @@
 """Config flow for Ooler Sleep System integration."""
+
 from __future__ import annotations
 
 import asyncio
 from typing import Any
 
-from bleak.backends.device import BLEDevice
-from ooler_ble_client import OolerBLEDevice, test_connection
 import voluptuous as vol
-
+from bleak.backends.device import BLEDevice
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
@@ -16,6 +15,7 @@ from homeassistant.components.bluetooth import (
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
 from homeassistant.data_entry_flow import FlowResult
+from ooler_ble_client import OolerBLEDevice, test_connection
 
 from .const import CONF_MODEL, DOMAIN  # , _LOGGER
 
@@ -200,8 +200,8 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
     #             self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
     #         )
 
-    async def _async_check_ooler_connection(self, bledevice: BLEDevice) -> None:  #
-        """Try to connect to client and test read and write power functions to test if paired."""
+    async def _async_check_ooler_connection(self, bledevice: BLEDevice) -> None:
+        """Try to connect to client and test read and write power functions."""
         await asyncio.sleep(5)
         assert self._pairing_task is not None
         try:
