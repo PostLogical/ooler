@@ -7,19 +7,14 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.bluetooth import (
-    BluetoothChange,
-    BluetoothScanningMode,
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
     async_last_service_info,
-    async_register_callback,
 )
-from homeassistant.components.bluetooth.match import ADDRESS
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.const import CONF_ADDRESS
-from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from ooler_ble_client import parse_ooler_advertisement
+from ooler_ble_client import OolerBLEDevice
 
 from .const import _LOGGER, CONF_MODEL, DOMAIN
 
@@ -45,16 +40,6 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         if not discovery_info.name.startswith("OOLER"):
             return self.async_abort(reason="not_supported")
         self._discovery_info = discovery_info
-
-        # If the device is already advertising in pairing mode, skip the wait step.
-        adv = parse_ooler_advertisement(
-            discovery_info.name,
-            discovery_info.address,
-            discovery_info.manufacturer_data,
-        )
-        if adv and adv.is_pairing:
-            self._paired = True
-
         return await self.async_step_bluetooth_confirm()
 
     async def async_step_bluetooth_confirm(
@@ -126,13 +111,13 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_wait_for_pairing_mode(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Wait for device to enter pairing mode."""
+        """Verify BLE connection to the device."""
         if not self._pairing_task:
             discovery_info = self._discovery_info
             if discovery_info is None:
                 return self.async_show_progress_done(next_step_id="pairing_timeout")
             self._pairing_task = self.hass.async_create_task(
-                self._async_wait_for_pairing_advertisement(discovery_info.address)
+                self._async_verify_connection(discovery_info)
             )
             return self.async_show_progress(
                 step_id="wait_for_pairing_mode",
@@ -180,41 +165,24 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             data={CONF_MODEL: model_name},
         )
 
-    async def _async_wait_for_pairing_advertisement(self, address: str) -> None:
-        """Watch BT advertisements until the device enters pairing mode or times out."""
-        paired_event = asyncio.Event()
-
-        @callback
-        def _advertisement_callback(
-            service_info: BluetoothServiceInfoBleak,
-            change: BluetoothChange,
-        ) -> None:
-            _LOGGER.debug(
-                "Ooler advertisement: name=%s address=%s manufacturer_data=%s",
-                service_info.name,
-                service_info.address,
-                service_info.manufacturer_data,
-            )
-            adv = parse_ooler_advertisement(
-                service_info.name,
-                service_info.address,
-                service_info.manufacturer_data,
-            )
-            _LOGGER.debug("Ooler parsed advertisement: %s", adv)
-            if adv and adv.is_pairing:
-                self._paired = True
-                paired_event.set()
-
-        cancel_callback = async_register_callback(
-            self.hass,
-            _advertisement_callback,
-            {ADDRESS: address},
-            BluetoothScanningMode.PASSIVE,
-        )
-
+    async def _async_verify_connection(
+        self, discovery_info: BluetoothServiceInfoBleak
+    ) -> None:
+        """Connect to the device and verify GATT access by reading state."""
+        client = OolerBLEDevice(model=discovery_info.name)
+        client.set_ble_device(discovery_info.device)
         try:
-            await asyncio.wait_for(paired_event.wait(), timeout=60)
-        except TimeoutError:
-            pass
+            await client.connect()
+            await client.async_poll()
+            self._paired = True
+            _LOGGER.debug(
+                "Connection verified for %s", discovery_info.address
+            )
+        except Exception:
+            _LOGGER.debug(
+                "Connection verification failed for %s",
+                discovery_info.address,
+                exc_info=True,
+            )
         finally:
-            cancel_callback()
+            await client.stop()
