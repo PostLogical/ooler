@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from asyncio import sleep
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -31,7 +30,6 @@ from .const import (
 )
 from .models import OolerData
 
-SERVICE_PAUSE = "pause_service"
 SERVICE_CLEAN = "clean_service"
 
 
@@ -42,15 +40,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Ooler thermostat."""
     data: OolerData = config_entry.runtime_data
-    entities = [Ooler(data)]
-    async_add_entities(entities)
+    async_add_entities([Ooler(data)])
     platform = entity_platform.async_get_current_platform()
 
-    platform.async_register_entity_service(
-        SERVICE_PAUSE,
-        {},
-        "async_pause_client",
-    )
     platform.async_register_entity_service(
         SERVICE_CLEAN,
         {},
@@ -71,7 +63,6 @@ class Ooler(ClimateEntity):
         | ClimateEntityFeature.TURN_OFF
         | ClimateEntityFeature.TURN_ON
     )
-    _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(self, data: OolerData) -> None:
         """Initialize the climate entity."""
@@ -215,7 +206,7 @@ class Ooler(ClimateEntity):
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
         await client.set_temperature(int(temp))
-        _LOGGER.debug("Setting temperature to :%s", temp)
+        _LOGGER.debug("Setting temperature to: %s", temp)
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
@@ -225,12 +216,3 @@ class Ooler(ClimateEntity):
             await client.connect()
         await client.set_clean(True)
         _LOGGER.debug("Cleaning the device: %s", self.name)
-
-    # This service function is necessary because the Bluetooth connection is active,
-    # which means when Hass is connected to Ooler, nothing else can connect to Ooler
-    # including the phone app.
-    async def async_pause_client(self) -> None:
-        """Disconnect Hass from the device for 60 seconds."""
-        await self._data.client.stop()
-        await sleep(60)
-        await self._data.client.connect()

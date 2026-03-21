@@ -26,10 +26,6 @@
     }
   },
   "services": {
-    "pause_service": {
-      "name": "Pause connection",
-      "description": "Disconnects the Bluetooth connection to the Ooler for 60 seconds, allowing the mobile app or other controllers to connect during that time."
-    },
     "clean_service": {
       "name": "Clean",
       "description": "Activates the UV light to clean the Ooler water system."

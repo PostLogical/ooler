@@ -41,14 +41,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
 
     async def _async_connect_and_sync_unit() -> None:
         """Connect and sync temperature unit to match HA."""
-        await client.connect()
-        if client.state.temperature_unit != ha_unit:
+        try:
+            await client.connect()
+            if client.state.temperature_unit != ha_unit:
+                _LOGGER.debug(
+                    "Syncing Ooler temperature unit from %s to %s",
+                    client.state.temperature_unit,
+                    ha_unit,
+                )
+                await client.set_temperature_unit(ha_unit)
+        except Exception:
             _LOGGER.debug(
-                "Syncing Ooler temperature unit from %s to %s",
-                client.state.temperature_unit,
-                ha_unit,
+                "Failed to connect to Ooler %s", address, exc_info=True
             )
-            await client.set_temperature_unit(ha_unit)
 
     data = OolerData(address, model, client)
 
@@ -87,4 +92,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
 
 async def async_unload_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.client.stop()
+    return unload_ok

@@ -69,6 +69,4 @@ class OolerWaterLevelSensorEntity(OolerSensorEntity):
     @property
     def native_value(self) -> int | None:
         """Return the water level of the Ooler."""
-        if self._data.client.state is not None:
-            return self._data.client.state.water_level
-        return None
+        return self._data.client.state.water_level
