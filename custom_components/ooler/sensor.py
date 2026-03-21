@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import PERCENTAGE, UnitOfPower
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
@@ -22,11 +22,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Ooler sensors."""
     data: OolerData = config_entry.runtime_data
-    entities = [
-        OolerWattageSensorEntity(data),
-        OolerWaterLevelSensorEntity(data),
-    ]
-    async_add_entities(entities)
+    async_add_entities([OolerWaterLevelSensorEntity(data)])
 
 
 class OolerSensorEntity(SensorEntity):
@@ -57,26 +53,6 @@ class OolerSensorEntity(SensorEntity):
         self.async_on_remove(
             self._data.client.register_callback(self._handle_state_update)
         )
-
-
-class OolerWattageSensorEntity(OolerSensorEntity):
-    """Representation of an Ooler wattage sensor."""
-
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
-
-    def __init__(self, data: OolerData) -> None:
-        """Initialize the wattage sensor entity."""
-        super().__init__(data)
-        self._attr_name = "Wattage"
-        self._attr_unique_id = f"{data.address}_wattage_sensor"
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the wattage of the pump."""
-        if self._data.client.state is not None:
-            return self._data.client.state.pump_watts
-        return None
 
 
 class OolerWaterLevelSensorEntity(OolerSensorEntity):

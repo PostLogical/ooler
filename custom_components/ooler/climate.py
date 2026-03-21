@@ -22,7 +22,13 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OolerConfigEntry
-from .const import _LOGGER, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP
+from .const import (
+    _LOGGER,
+    DEFAULT_MAX_TEMP_C,
+    DEFAULT_MAX_TEMP_F,
+    DEFAULT_MIN_TEMP_C,
+    DEFAULT_MIN_TEMP_F,
+)
 from .models import OolerData
 
 SERVICE_PAUSE = "pause_service"
@@ -57,10 +63,7 @@ class Ooler(ClimateEntity):
 
     _attr_has_entity_name = True
     _attr_name = None
-    _attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
     _attr_target_temperature_step = 1
-    _attr_min_temp = DEFAULT_MIN_TEMP
-    _attr_max_temp = DEFAULT_MAX_TEMP
 
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
@@ -82,34 +85,30 @@ class Ooler(ClimateEntity):
         super().__init__()
 
     @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
-
-    @property
     def available(self) -> bool:
         """Determine if the entity is available."""
         return self._data.client.is_connected
 
     @property
     def temperature_unit(self) -> str:
-        """Return temperature unit."""
-        return self._attr_temperature_unit
+        """Return temperature unit based on device setting."""
+        if self._data.client.state.temperature_unit == "C":
+            return UnitOfTemperature.CELSIUS
+        return UnitOfTemperature.FAHRENHEIT
 
     @property
     def min_temp(self) -> float:
         """Return the minimum target temperature."""
-        return self._attr_min_temp
+        if self._data.client.state.temperature_unit == "C":
+            return DEFAULT_MIN_TEMP_C
+        return DEFAULT_MIN_TEMP_F
 
     @property
     def max_temp(self) -> float:
         """Return the maximum target temperature."""
-        return self._attr_max_temp
-
-    @property
-    def target_temperature_step(self) -> float | None:
-        """Return the supported step of target temperature."""
-        return self._attr_target_temperature_step
+        if self._data.client.state.temperature_unit == "C":
+            return DEFAULT_MAX_TEMP_C
+        return DEFAULT_MAX_TEMP_F
 
     @property
     def target_temperature(self) -> int | None:
