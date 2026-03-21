@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import timedelta
+
 from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothScanningMode,
@@ -13,6 +16,7 @@ from homeassistant.components.bluetooth.match import ADDRESS
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import OolerBLEDevice
 
@@ -20,6 +24,8 @@ from .const import CONF_MODEL, _LOGGER
 from .models import OolerData
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
+
+RECONNECT_INTERVAL = timedelta(seconds=60)
 
 type OolerConfigEntry = ConfigEntry[OolerData]
 
@@ -51,11 +57,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
                 )
                 await client.set_temperature_unit(ha_unit)
         except Exception:
-            _LOGGER.debug(
+            _LOGGER.warning(
                 "Failed to connect to Ooler %s", address, exc_info=True
             )
 
     data = OolerData(address, model, client)
+    connect_task: asyncio.Task[None] | None = None
+
+    def _schedule_connect() -> None:
+        """Schedule a connection attempt if one isn't already running."""
+        nonlocal connect_task
+        if connect_task and not connect_task.done():
+            return
+        connect_task = hass.async_create_task(_async_connect_and_sync_unit())
 
     @callback
     def _async_update_ble(
@@ -65,7 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         """Update from a ble callback."""
         client.set_ble_device(service_info.device)
         if data.connection_enabled and not client.is_connected:
-            hass.async_create_task(_async_connect_and_sync_unit())
+            _schedule_connect()
 
     entry.async_on_unload(
         async_register_callback(
@@ -74,6 +88,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
             {ADDRESS: address},
             BluetoothScanningMode.ACTIVE,
         )
+    )
+
+    @callback
+    def _async_reconnect_check(_now: object = None) -> None:
+        """Periodically attempt reconnection if disconnected."""
+        if data.connection_enabled and not client.is_connected:
+            fresh_info = async_last_service_info(hass, address, connectable=True)
+            if fresh_info:
+                client.set_ble_device(fresh_info.device)
+            _LOGGER.debug("Periodic reconnect attempt for Ooler %s", address)
+            _schedule_connect()
+
+    entry.async_on_unload(
+        async_track_time_interval(hass, _async_reconnect_check, RECONNECT_INTERVAL)
     )
 
     entry.runtime_data = data
