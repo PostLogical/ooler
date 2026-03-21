@@ -14,15 +14,23 @@
 [![Discord][discord-shield]][discord]
 [![Community Forum][forum-shield]][forum]
 
-This custom Home Assistant component will control your Ooler Sleep System over a bluetooth connection. It is fully compatible with ESP Bluetooth Proxies so if your server is not in range of your Ooler, you can set up an ESP-32 in your bedroom to easily connect. At this time it supports turning the Ooler on and off, setting the fan mode, setting the target temperature, starting or stopping cleaning mode, and reading the current status of all of those functions. It also attempts to display the watts currently being used by the device and the current water level; however, both of these seem to be wrong, so further study will be needed to ascertain if those numbers can be gathered. Other functions are not currently implemented, but they would not be hard to develop so feel free to reach out with a request or submit a PR. For some reason the switch entities appear separate from the others at first, but after a while (maybe a reboot), they automatically appear together.
+This custom Home Assistant component controls your Ooler Sleep System over a Bluetooth connection. It is fully compatible with ESPHome Bluetooth Proxies, so if your server is not in range of your Ooler, you can set up an ESP32 in your bedroom to relay the connection.
 
 **This component will set up the following platforms.**
 
 | Platform  | Description                                                                |
 | --------- | -------------------------------------------------------------------------- |
 | `climate` | Show current Ooler settings and control power, fan speed, and temperature. |
-| `sensor`  | Show current info on watts used and water level.                           |
-| `switch`  | Switch cleaning mode or bluetooth connection on or off.                    |
+| `sensor`  | Show water level.                                                          |
+| `switch`  | Switch cleaning mode or Bluetooth connection on or off.                    |
+
+### Temperature units
+
+The integration automatically syncs the Ooler's temperature unit to match your Home Assistant unit system (metric = °C, imperial = °F). This ensures temperatures are displayed correctly in both HA and on the Ooler's physical display. If you need a different unit on the device, please [open an issue](https://github.com/PostLogical/ooler/issues).
+
+### Setup
+
+Ooler devices are discovered automatically via Bluetooth. During setup, the integration connects to the device and reads its state to verify the connection. No power cycling or pairing button press is required — just confirm the discovered device in the UI.
 
 ![oolerlogo][oolerlogo]
 
@@ -63,9 +71,9 @@ custom_components/ooler/switch.py
 ## Configuration is done in the UI
 
 1. In the HA UI go to "Settings" -> "Devices & Services" -> "Integrations".
-2. If your Ooler is not currently being accessed by an Ooler app and does not have bluetooth turned off entirely, your Ooler should appear in the discovered integrations. However, you can always click the + sign and search for "Ooler" to try to add the integration.
-3. If you cannot see any Oolers available, hold the power button on your device for a little over 5 seconds to put it into discoverable mode (you would have to do this during setup anyway and it lasts for 60 seconds each time).
-4. Follow the directions to finish pairing and enjoy!
+2. Your Ooler should appear in the discovered integrations automatically. You can also click the + sign and search for "Ooler".
+3. If your Ooler is not discovered, make sure it is powered on and not connected to the Ooler app (only one Bluetooth connection is allowed at a time). You may need to hold the power button for a few seconds to make it discoverable.
+4. Confirm the device and the integration will verify the connection.
 <!---->
 
 ## Contributions are welcome!
