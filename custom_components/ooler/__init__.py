@@ -6,6 +6,7 @@ from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
+    async_last_service_info,
     async_register_callback,
 )
 from homeassistant.components.bluetooth.match import ADDRESS
@@ -30,6 +31,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
 
     model = entry.data[CONF_MODEL]
     client = OolerBLEDevice(model=model)
+
+    # Seed the BLEDevice from HA's cache so connect() works immediately
+    service_info = async_last_service_info(hass, address, connectable=True)
+    if service_info:
+        client.set_ble_device(service_info.device)
 
     ha_unit = "C" if hass.config.units is METRIC_SYSTEM else "F"
 
