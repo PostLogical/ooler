@@ -124,13 +124,15 @@ class OolerConnectionSwitch(SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Connect to the device."""
+        self._data.connection_enabled = True
         client = self._data.client
         if not client.is_connected:
             _LOGGER.debug("Client not connected. Attempting to connect")
             await client.connect()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Disconnect from the device."""
+        """Disconnect from the device and suppress auto-reconnect."""
+        self._data.connection_enabled = False
         client = self._data.client
         if client.is_connected:
             _LOGGER.debug("Client is connected. Attempting to disconnect")

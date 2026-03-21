@@ -44,6 +44,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
             )
             await client.set_temperature_unit(ha_unit)
 
+    data = OolerData(address, model, client)
+
     @callback
     def _async_update_ble(
         service_info: BluetoothServiceInfoBleak,
@@ -51,7 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     ) -> None:
         """Update from a ble callback."""
         client.set_ble_device(service_info.device)
-        if not client.is_connected:
+        if data.connection_enabled and not client.is_connected:
             hass.async_create_task(_async_connect_and_sync_unit())
 
     entry.async_on_unload(
@@ -63,7 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         )
     )
 
-    entry.runtime_data = OolerData(address, model, client)
+    entry.runtime_data = data
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

@@ -14,3 +14,4 @@ class OolerData:
     address: str
     model: str
     client: OolerBLEDevice
+    connection_enabled: bool = True
