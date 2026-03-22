@@ -51,11 +51,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     # This avoids all devices racing for proxy slots simultaneously.
     reconnect_delay = (int(address.replace(":", ""), 16) % 1500 + 500) / 1000
 
-    async def _async_connect() -> None:
+    async def _async_connect(stagger: bool = False) -> None:
         """Connect to the device, syncing temperature unit on first connect."""
         nonlocal unit_synced
         try:
-            await asyncio.sleep(reconnect_delay)
+            if stagger:
+                await asyncio.sleep(reconnect_delay)
             await client.connect()
             if not unit_synced and client.state.temperature_unit != ha_unit:
                 _LOGGER.debug(
@@ -73,12 +74,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     data = OolerData(address, model, client)
     connect_task: asyncio.Task[None] | None = None
 
-    def _schedule_connect() -> None:
+    def _schedule_connect(stagger: bool = False) -> None:
         """Schedule a connection attempt if one isn't already running."""
         nonlocal connect_task
         if connect_task and not connect_task.done():
             return
-        connect_task = hass.async_create_task(_async_connect())
+        connect_task = hass.async_create_task(_async_connect(stagger=stagger))
 
     @callback
     def _async_update_ble(
@@ -104,7 +105,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         """Trigger immediate reconnect when the device disconnects."""
         if data.connection_enabled and not client.is_connected:
             _LOGGER.debug("Ooler %s disconnected, scheduling reconnect", address)
-            _schedule_connect()
+            _schedule_connect(stagger=True)
 
     entry.async_on_unload(client.register_callback(_async_on_state_change))
 
@@ -116,7 +117,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
             if fresh_info:
                 client.set_ble_device(fresh_info.device)
             _LOGGER.debug("Periodic reconnect attempt for Ooler %s", address)
-            _schedule_connect()
+            _schedule_connect(stagger=True)
 
     entry.async_on_unload(
         async_track_time_interval(hass, _async_reconnect_check, RECONNECT_INTERVAL)
