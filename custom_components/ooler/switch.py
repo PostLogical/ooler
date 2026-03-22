@@ -11,7 +11,6 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OolerConfigEntry
-from .const import _LOGGER
 from .models import OolerData
 
 
@@ -69,21 +68,13 @@ class OolerCleaningSwitch(SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(True)
-        _LOGGER.debug("Cleaning the device: %s", self.name)
+        await self._data.async_ensure_connected()
+        await self._data.client.set_clean(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Stop cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(False)
-        _LOGGER.debug("Stopping cleaning process: %s", self.name)
+        await self._data.async_ensure_connected()
+        await self._data.client.set_clean(False)
 
 
 class OolerConnectionSwitch(SwitchEntity):
@@ -125,15 +116,10 @@ class OolerConnectionSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Connect to the device."""
         self._data.connection_enabled = True
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
+        await self._data.async_ensure_connected()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disconnect from the device and suppress auto-reconnect."""
         self._data.connection_enabled = False
-        client = self._data.client
-        if client.is_connected:
-            _LOGGER.debug("Client is connected. Attempting to disconnect")
-            await client.stop()
+        if self._data.client.is_connected:
+            await self._data.client.stop()

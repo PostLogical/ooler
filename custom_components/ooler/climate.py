@@ -172,13 +172,9 @@ class Ooler(ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
+        await self._data.async_ensure_connected()
         power = hvac_mode != HVACMode.OFF
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_power(power)
-        _LOGGER.debug("Setting HVACMode to: %s", hvac_mode)
+        await self._data.client.set_power(power)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
@@ -187,12 +183,8 @@ class Ooler(ClimateEntity):
                 "Invalid fan_mode value: Valid values are 'Silent', 'Regular', 'Boost'"
             )
             return
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_mode(fan_mode)
-        _LOGGER.debug("Setting fan mode to: %s", fan_mode)
+        await self._data.async_ensure_connected()
+        await self._data.client.set_mode(fan_mode)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -201,18 +193,10 @@ class Ooler(ClimateEntity):
             raise ValueError("No target temperature provided.")
         if temp == self.target_temperature:
             return
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_temperature(int(temp))
-        _LOGGER.debug("Setting temperature to: %s", temp)
+        await self._data.async_ensure_connected()
+        await self._data.client.set_temperature(int(temp))
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(True)
-        _LOGGER.debug("Cleaning the device: %s", self.name)
+        await self._data.async_ensure_connected()
+        await self._data.client.set_clean(True)

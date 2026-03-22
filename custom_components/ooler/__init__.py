@@ -26,6 +26,7 @@ from .models import OolerData
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
 
 RECONNECT_INTERVAL = timedelta(seconds=60)
+POLL_INTERVAL = timedelta(minutes=5)
 
 type OolerConfigEntry = ConfigEntry[OolerData]
 
@@ -44,18 +45,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         client.set_ble_device(service_info.device)
 
     ha_unit = "C" if hass.config.units is METRIC_SYSTEM else "F"
+    unit_synced = False
 
-    async def _async_connect_and_sync_unit() -> None:
-        """Connect and sync temperature unit to match HA."""
+    # Stagger reconnects across devices using the address as a seed.
+    # This avoids all devices racing for proxy slots simultaneously.
+    reconnect_delay = (int(address.replace(":", ""), 16) % 1500 + 500) / 1000
+
+    async def _async_connect() -> None:
+        """Connect to the device, syncing temperature unit on first connect."""
+        nonlocal unit_synced
         try:
+            await asyncio.sleep(reconnect_delay)
             await client.connect()
-            if client.state.temperature_unit != ha_unit:
+            if not unit_synced and client.state.temperature_unit != ha_unit:
                 _LOGGER.debug(
                     "Syncing Ooler temperature unit from %s to %s",
                     client.state.temperature_unit,
                     ha_unit,
                 )
                 await client.set_temperature_unit(ha_unit)
+            unit_synced = True
         except Exception:
             _LOGGER.warning(
                 "Failed to connect to Ooler %s", address, exc_info=True
@@ -69,7 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         nonlocal connect_task
         if connect_task and not connect_task.done():
             return
-        connect_task = hass.async_create_task(_async_connect_and_sync_unit())
+        connect_task = hass.async_create_task(_async_connect())
 
     @callback
     def _async_update_ble(
@@ -91,6 +100,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     )
 
     @callback
+    def _async_on_state_change(*_args: object) -> None:
+        """Trigger immediate reconnect when the device disconnects."""
+        if data.connection_enabled and not client.is_connected:
+            _LOGGER.debug("Ooler %s disconnected, scheduling reconnect", address)
+            _schedule_connect()
+
+    entry.async_on_unload(client.register_callback(_async_on_state_change))
+
+    @callback
     def _async_reconnect_check(_now: object = None) -> None:
         """Periodically attempt reconnection if disconnected."""
         if data.connection_enabled and not client.is_connected:
@@ -102,6 +120,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
 
     entry.async_on_unload(
         async_track_time_interval(hass, _async_reconnect_check, RECONNECT_INTERVAL)
+    )
+
+    @callback
+    def _async_poll_check(_now: object = None) -> None:
+        """Periodically poll for water level and clean status."""
+        if data.connection_enabled and client.is_connected:
+            hass.async_create_task(_async_poll())
+
+    async def _async_poll() -> None:
+        """Poll the device for current state."""
+        try:
+            await client.async_poll()
+        except Exception:
+            _LOGGER.debug(
+                "Periodic poll failed for Ooler %s", address, exc_info=True
+            )
+
+    entry.async_on_unload(
+        async_track_time_interval(hass, _async_poll_check, POLL_INTERVAL)
     )
 
     entry.runtime_data = data
