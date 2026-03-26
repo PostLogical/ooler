@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 addopts = "-qq --cov=custom_components.ooler"
 console_output_style = "count"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 branch = false
