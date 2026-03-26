@@ -59,6 +59,7 @@ class OolerWaterLevelSensorEntity(OolerSensorEntity):
     """Representation of an Ooler water level sensor."""
 
     _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_translation_key = "water_level"
 
     def __init__(self, data: OolerData) -> None:
         """Initialize the water level sensor entity."""

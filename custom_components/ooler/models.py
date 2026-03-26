@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bleak.exc import BleakError
 from homeassistant.exceptions import HomeAssistantError
 from ooler_ble_client import OolerBLEDevice
 
@@ -24,10 +25,9 @@ class OolerData:
         if not self.client.is_connected:
             try:
                 await self.client.connect()
-            except Exception as err:
+            except (BleakError, TimeoutError) as err:
                 _LOGGER.warning(
                     "Failed to connect to Ooler %s", self.address, exc_info=True
                 )
-                raise HomeAssistantError(
-                    f"Failed to connect to Ooler {self.address}"
-                ) from err
+                msg = f"Failed to connect to Ooler {self.address}"
+                raise HomeAssistantError(msg) from err

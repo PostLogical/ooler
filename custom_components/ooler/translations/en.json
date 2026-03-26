@@ -25,6 +25,21 @@
       "not_supported": "Device not supported"
     }
   },
+  "entity": {
+    "sensor": {
+      "water_level": {
+        "name": "Water Level"
+      }
+    },
+    "switch": {
+      "cleaning": {
+        "name": "Cleaning"
+      },
+      "bluetooth_connection": {
+        "name": "Bluetooth Connection"
+      }
+    }
+  },
   "services": {
     "clean_service": {
       "name": "Clean",

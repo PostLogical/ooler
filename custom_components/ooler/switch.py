@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
@@ -32,6 +33,7 @@ class OolerCleaningSwitch(SwitchEntity):
     """Representation of Ooler Cleaning switch."""
 
     _attr_has_entity_name = True
+    _attr_translation_key = "cleaning"
 
     def __init__(self, data: OolerData) -> None:
         """Initialize the switch entity."""
@@ -81,6 +83,8 @@ class OolerConnectionSwitch(SwitchEntity):
     """Representation of Ooler bluetooth connection switch."""
 
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "bluetooth_connection"
 
     def __init__(self, data: OolerData) -> None:
         """Initialize the switch entity."""

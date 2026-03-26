@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 
+from bleak.exc import BleakError
 from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
-    async_last_service_info,
+    async_ble_device_from_address,
     async_register_callback,
 )
 from homeassistant.components.bluetooth.match import ADDRESS
@@ -20,7 +21,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import OolerBLEDevice
 
-from .const import CONF_MODEL, _LOGGER
+from .const import _LOGGER, CONF_MODEL
 from .models import OolerData
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
@@ -40,9 +41,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     client = OolerBLEDevice(model=model)
 
     # Seed the BLEDevice from HA's cache so connect() works immediately
-    service_info = async_last_service_info(hass, address, connectable=True)
-    if service_info:
-        client.set_ble_device(service_info.device)
+    ble_device = async_ble_device_from_address(hass, address, connectable=True)
+    if ble_device:
+        client.set_ble_device(ble_device)
 
     ha_unit = "C" if hass.config.units is METRIC_SYSTEM else "F"
     unit_synced = False
@@ -66,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
                 )
                 await client.set_temperature_unit(ha_unit)
             unit_synced = True
-        except Exception:
+        except (BleakError, TimeoutError):
             _LOGGER.warning(
                 "Failed to connect to Ooler %s", address, exc_info=True
             )
@@ -113,9 +114,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
     def _async_reconnect_check(_now: object = None) -> None:
         """Periodically attempt reconnection if disconnected."""
         if data.connection_enabled and not client.is_connected:
-            fresh_info = async_last_service_info(hass, address, connectable=True)
-            if fresh_info:
-                client.set_ble_device(fresh_info.device)
+            fresh_device = async_ble_device_from_address(
+                hass, address, connectable=True
+            )
+            if fresh_device:
+                client.set_ble_device(fresh_device)
             _LOGGER.debug("Periodic reconnect attempt for Ooler %s", address)
             _schedule_connect(stagger=True)
 
@@ -133,7 +136,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> boo
         """Poll the device for current state."""
         try:
             await client.async_poll()
-        except Exception:
+        except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Periodic poll failed for Ooler %s", address, exc_info=True
             )

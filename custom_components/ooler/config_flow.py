@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 import voluptuous as vol
+from bleak.exc import BleakError
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
@@ -178,7 +179,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.debug(
                 "Connection verified for %s", discovery_info.address
             )
-        except Exception:
+        except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Connection verification failed for %s",
                 discovery_info.address,
