@@ -28,15 +28,36 @@ This custom Home Assistant component controls your Ooler Sleep System over a Blu
 
 The integration automatically syncs the Ooler's temperature unit to match your Home Assistant unit system (metric = °C, imperial = °F). This ensures temperatures are displayed correctly in both HA and on the Ooler's physical display. If you need a different unit on the device, please [open an issue](https://github.com/PostLogical/ooler/issues).
 
-### Setup
+### Supported devices
 
-Ooler devices are discovered automatically via Bluetooth. During setup, the integration connects to the device and reads its state to verify the connection. No power cycling or pairing button press is required — just confirm the discovered device in the UI.
+- **Ooler Sleep System** (all models with BLE GATT interface)
+
+The Dock Pro (Ooler's successor) uses a cloud API and is not supported by this integration. See [sleepme_thermostat](https://github.com/rsampayo/sleepme_thermostat) for Dock Pro support.
+
+### Supported functions
+
+| Function | Entity | Description |
+| --- | --- | --- |
+| Power on/off | `climate` | Turn the Ooler on or off |
+| Temperature control | `climate` | Set target water temperature |
+| Fan mode | `climate` | Silent, Regular, or Boost |
+| Current temperature | `climate` | Live water temperature reading |
+| HVAC action | `climate` | Shows Heating, Cooling, or Idle |
+| Water level | `sensor` | Current water reservoir level (%) |
+| Cleaning mode | `switch` | Start/stop UV cleaning cycle |
+| Bluetooth connection | `switch` | Manually disconnect to free the connection for the Ooler app |
+
+### Data updates
+
+The integration maintains a persistent BLE GATT connection to each Ooler device. State updates (power, temperature, mode) are pushed in real-time via GATT notifications. Water level and cleaning status are polled every 5 minutes.
+
+If the connection drops, the integration reconnects automatically — both immediately on disconnect and via a 60-second periodic fallback. When multiple devices reconnect simultaneously (e.g., after a proxy restart), attempts are staggered to avoid overwhelming the proxy's connection slots.
 
 ![oolerlogo][oolerlogo]
 
 ## Installation
 
-### HACS (Once available)
+### HACS
 
 1. Find the integration as `Ooler`
 2. Click install.
@@ -44,37 +65,62 @@ Ooler devices are discovered automatically via Bluetooth. During setup, the inte
 
 ### Manual
 
-1. Using the tool of choice open the directory (folder) for your HA configuration (where you find `configuration.yaml`).
-2. If you do not have a `custom_components` directory (folder) there, you need to create it.
-3. In the `custom_components` directory (folder) create a new folder called `ooler`.
-4. Download _all_ the files from the `custom_components/ooler/` directory (folder) in this repository.
-5. Place the files you downloaded in the new directory (folder) you created.
-6. Restart Home Assistant
-7. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "Ooler"
+1. Copy the `custom_components/ooler/` folder to your HA `custom_components/` directory.
+2. Restart Home Assistant.
 
-Using your HA configuration directory (folder) as a starting point you should now also have this:
-
-```text
-custom_components/ooler/translations/en.json
-custom_components/ooler/__init__.py
-custom_components/ooler/climate.py
-custom_components/ooler/config_flow.py
-custom_components/ooler/const.py
-custom_components/ooler/manifest.json
-custom_components/ooler/models.py
-custom_components/ooler/sensor.py
-custom_components/ooler/services.yaml
-custom_components/ooler/strings.json
-custom_components/ooler/switch.py
-```
-
-## Configuration is done in the UI
+## Setup
 
 1. In the HA UI go to "Settings" -> "Devices & Services" -> "Integrations".
 2. Your Ooler should appear in the discovered integrations automatically. You can also click the + sign and search for "Ooler".
 3. If your Ooler is not discovered, make sure it is powered on and not connected to the Ooler app (only one Bluetooth connection is allowed at a time). You may need to hold the power button for a few seconds to make it discoverable.
 4. Confirm the device and the integration will verify the connection.
-<!---->
+
+### Known limitations
+
+- **One Bluetooth connection at a time.** The Ooler only supports a single BLE connection. If the Ooler app is connected, HA cannot connect (and vice versa). Use the Bluetooth Connection switch to disconnect from HA when you need the app.
+- **ESP32 proxy connection slots.** Each Ooler uses 4 BLE notification slots. ESPHome proxies provide 12 slots (vs 9 for raw ESP-IDF). If you have multiple BLE devices on one proxy, you may run into slot limits.
+- **No Wi-Fi or cloud support.** The Ooler communicates only via Bluetooth. The device must be within BLE range of your HA server or an ESPHome Bluetooth proxy.
+
+### Troubleshooting
+
+- **Device not discovered:** Ensure the Ooler is powered on and not connected to the mobile app. Hold the power button for ~5 seconds to enter pairing/discoverable mode.
+- **Frequent disconnects:** Check your ESP32 proxy's BLE slot usage. Reduce the number of active BLE connections if needed. Ensure the proxy is running ESPHome (not raw ESP-IDF) for maximum notification slots.
+- **Temperature displays incorrectly:** The integration auto-syncs the Ooler's display unit to your HA unit system. If you recently changed your HA unit system, restart the integration.
+- **"Device unavailable" after HA restart:** The integration seeds the BLE device from HA's cache on startup. If the proxy hasn't reported the device yet, it may take up to 60 seconds for the periodic reconnect to establish the connection.
+- **Diagnostics:** Download device diagnostics from Settings -> Devices -> Ooler -> Download diagnostics. This includes connection state, device settings, and sensor values for debugging.
+
+### Example automations
+
+**Turn on the Ooler at bedtime:**
+```yaml
+automation:
+  - alias: "Ooler bedtime cooling"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    action:
+      - service: climate.set_temperature
+        target:
+          entity_id: climate.ooler_92106080601
+        data:
+          temperature: 68
+      - service: climate.turn_on
+        target:
+          entity_id: climate.ooler_92106080601
+```
+
+**Turn off in the morning:**
+```yaml
+automation:
+  - alias: "Ooler morning off"
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    action:
+      - service: climate.turn_off
+        target:
+          entity_id: climate.ooler_92106080601
+```
 
 ## Contributions are welcome!
 
