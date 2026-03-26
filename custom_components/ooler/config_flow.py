@@ -12,9 +12,8 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
     async_last_service_info,
 )
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_ADDRESS
-from homeassistant.data_entry_flow import FlowResult
 from ooler_ble_client import OolerBLEDevice
 
 from .const import _LOGGER, CONF_MODEL, DOMAIN
@@ -29,12 +28,12 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize."""
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, str] = {}
-        self._pairing_task: asyncio.Task | None = None
+        self._pairing_task: asyncio.Task[None] | None = None
         self._paired: bool = False
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the bluetooth discovery step."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
@@ -45,7 +44,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_bluetooth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Confirm discovery."""
         assert self._discovery_info is not None
         discovery_info = self._discovery_info
@@ -67,7 +66,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the user step to pick discovered device."""
         if user_input is not None:
             address = user_input[CONF_ADDRESS]
@@ -111,7 +110,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_wait_for_pairing_mode(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Verify BLE connection to the device."""
         if not self._pairing_task:
             discovery_info = self._discovery_info
@@ -137,7 +136,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_pairing_complete(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Create a configuration entry for a device that entered pairing mode."""
         assert self._discovery_info
         model_name = self._discovery_info.name
@@ -151,7 +150,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_pairing_timeout(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Inform the user that the device never entered pairing mode."""
         if user_input is not None:
             self._pairing_task = None
@@ -160,7 +159,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         self._set_confirm_only()
         return self.async_show_form(step_id="pairing_timeout")
 
-    def _create_ooler_entry(self, model_name: str) -> FlowResult:
+    def _create_ooler_entry(self, model_name: str) -> ConfigFlowResult:
         return self.async_create_entry(
             title=model_name,
             data={CONF_MODEL: model_name},
