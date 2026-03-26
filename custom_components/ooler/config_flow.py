@@ -159,6 +159,26 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         self._set_confirm_only()
         return self.async_show_form(step_id="pairing_timeout")
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration to re-verify the BLE connection."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert entry is not None
+
+        if user_input is not None:
+            address = entry.unique_id
+            assert address is not None
+            discovery_info = async_last_service_info(
+                self.hass, address, connectable=True
+            )
+            if discovery_info is None:
+                return self.async_abort(reason="no_devices_found")
+            self._discovery_info = discovery_info
+            return await self.async_step_wait_for_pairing_mode()
+
+        return self.async_show_form(step_id="reconfigure")
+
     def _create_ooler_entry(self, model_name: str) -> ConfigFlowResult:
         return self.async_create_entry(
             title=model_name,
