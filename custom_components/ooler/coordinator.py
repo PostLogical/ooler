@@ -21,7 +21,7 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util.unit_system import METRIC_SYSTEM
-from ooler_ble_client import OolerBLEDevice
+from ooler_ble_client import OolerBLEDevice, TemperatureUnit
 
 from .const import _LOGGER, CONF_MODEL
 
@@ -53,7 +53,9 @@ class OolerCoordinator:
         self._listeners: list[Callable[[], None]] = []
         self._connect_task: asyncio.Task[None] | None = None
         self._unit_synced: bool = False
-        self._ha_unit: str = "C" if hass.config.units is METRIC_SYSTEM else "F"
+        self._ha_unit: TemperatureUnit = (
+            "C" if hass.config.units is METRIC_SYSTEM else "F"
+        )
         self._reconnect_delay: float = (
             (int(address.replace(":", ""), 16) % 1500 + 500) / 1000
         )
