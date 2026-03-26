@@ -43,7 +43,7 @@ The Dock Pro (Ooler's successor) uses a cloud API and is not supported by this i
 | Fan mode | `climate` | Silent, Regular, or Boost |
 | Current temperature | `climate` | Live water temperature reading |
 | HVAC action | `climate` | Shows Heating, Cooling, or Idle |
-| Water level | `sensor` | Current water reservoir level (%) |
+| Water level | `sensor` | Current (very rough) water reservoir level (%) - 0%, 50%, or 100% |
 | Cleaning mode | `switch` | Start/stop UV cleaning cycle |
 | Bluetooth connection | `switch` | Manually disconnect to free the connection for the Ooler app |
 
