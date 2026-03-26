@@ -14,10 +14,8 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OolerConfigEntry
@@ -28,8 +26,10 @@ from .const import (
     DEFAULT_MIN_TEMP_C,
     DEFAULT_MIN_TEMP_F,
 )
-from .models import OolerData
+from .coordinator import OolerCoordinator
+from .entity import OolerEntity
 
+PARALLEL_UPDATES = 1
 SERVICE_CLEAN = "clean_service"
 
 
@@ -39,8 +39,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler thermostat."""
-    data: OolerData = config_entry.runtime_data
-    async_add_entities([Ooler(data)])
+    coordinator = config_entry.runtime_data
+    async_add_entities([Ooler(coordinator)])
     platform = entity_platform.async_get_current_platform()
 
     platform.async_register_entity_service(
@@ -50,10 +50,9 @@ async def async_setup_entry(
     )
 
 
-class Ooler(ClimateEntity):
+class Ooler(OolerEntity, ClimateEntity):
     """Representation of Ooler Thermostat."""
 
-    _attr_has_entity_name = True
     _attr_name = None
     _attr_target_temperature_step = 1
 
@@ -64,57 +63,48 @@ class Ooler(ClimateEntity):
         | ClimateEntityFeature.TURN_ON
     )
 
-    def __init__(self, data: OolerData) -> None:
+    def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the climate entity."""
-        self._data = data
-        self._attr_unique_id = f"ooler_{data.address}_thermostat"
-        self._attr_device_info = DeviceInfo(
-            name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
-        )
+        super().__init__(coordinator)
+        self._attr_unique_id = f"ooler_{coordinator.address}_thermostat"
         self._operation_list: list[HVACMode] = [HVACMode.OFF, HVACMode.AUTO]
         self._fan_modes: list[str] = ["Silent", "Regular", "Boost"]
-        super().__init__()
-
-    @property
-    def available(self) -> bool:
-        """Determine if the entity is available."""
-        return self._data.client.is_connected
 
     @property
     def temperature_unit(self) -> str:
         """Return temperature unit based on device setting."""
-        if self._data.client.state.temperature_unit == "C":
+        if self.coordinator.client.state.temperature_unit == "C":
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
     @property
     def min_temp(self) -> float:
         """Return the minimum target temperature."""
-        if self._data.client.state.temperature_unit == "C":
+        if self.coordinator.client.state.temperature_unit == "C":
             return DEFAULT_MIN_TEMP_C
         return DEFAULT_MIN_TEMP_F
 
     @property
     def max_temp(self) -> float:
         """Return the maximum target temperature."""
-        if self._data.client.state.temperature_unit == "C":
+        if self.coordinator.client.state.temperature_unit == "C":
             return DEFAULT_MAX_TEMP_C
         return DEFAULT_MAX_TEMP_F
 
     @property
     def target_temperature(self) -> int | None:
         """Return the temperature we try to reach."""
-        return self._data.client.state.set_temperature
+        return self.coordinator.client.state.set_temperature
 
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        return self._data.client.state.actual_temperature
+        return self.coordinator.client.state.actual_temperature
 
     @property
     def fan_mode(self) -> str | None:
         """Return the fan setting."""
-        return self._data.client.state.mode
+        return self.coordinator.client.state.mode
 
     @property
     def fan_modes(self) -> list[str] | None:
@@ -124,7 +114,7 @@ class Ooler(ClimateEntity):
     @property
     def hvac_mode(self) -> HVACMode | None:
         """Return current operation."""
-        if self._data.client.state.power:
+        if self.coordinator.client.state.power:
             return HVACMode.AUTO
         return HVACMode.OFF
 
@@ -156,25 +146,13 @@ class Ooler(ClimateEntity):
     @property
     def cleaning(self) -> bool | None:
         """Return if the unit is cleaning itself."""
-        return self._data.client.state.clean
-
-    @callback
-    def _handle_state_update(self, *args: Any) -> None:
-        """Handle state update."""
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """Register callback on add."""
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._data.client.register_callback(self._handle_state_update)
-        )
+        return self.coordinator.client.state.clean
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
-        await self._data.async_ensure_connected()
+        await self.coordinator.async_ensure_connected()
         power = hvac_mode != HVACMode.OFF
-        await self._data.client.set_power(power)
+        await self.coordinator.client.set_power(power)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
@@ -183,8 +161,8 @@ class Ooler(ClimateEntity):
                 "Invalid fan_mode value: Valid values are 'Silent', 'Regular', 'Boost'"
             )
             return
-        await self._data.async_ensure_connected()
-        await self._data.client.set_mode(fan_mode)
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_mode(fan_mode)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -193,10 +171,10 @@ class Ooler(ClimateEntity):
             raise ValueError("No target temperature provided.")
         if temp == self.target_temperature:
             return
-        await self._data.async_ensure_connected()
-        await self._data.client.set_temperature(int(temp))
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_temperature(int(temp))
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
-        await self._data.async_ensure_connected()
-        await self._data.client.set_clean(True)
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_clean(True)

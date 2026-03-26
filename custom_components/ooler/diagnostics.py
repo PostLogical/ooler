@@ -13,8 +13,8 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: OolerConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    data = entry.runtime_data
-    client = data.client
+    coordinator = entry.runtime_data
+    client = coordinator.client
     state = client.state
 
     return {
@@ -24,7 +24,7 @@ async def async_get_config_entry_diagnostics(
         },
         "connection": {
             "is_connected": client.is_connected,
-            "connection_enabled": data.connection_enabled,
+            "connection_enabled": coordinator.connection_enabled,
         },
         "device_state": {
             "power": state.power,
