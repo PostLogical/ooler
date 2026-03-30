@@ -57,8 +57,8 @@ class OolerCoordinator:
             "C" if hass.config.units is METRIC_SYSTEM else "F"
         )
         self._reconnect_delay: float = (
-            (int(address.replace(":", ""), 16) % 1500 + 500) / 1000
-        )
+            int(address.replace(":", ""), 16) % 1500 + 500
+        ) / 1000
 
     @property
     def is_connected(self) -> bool:
@@ -104,9 +104,7 @@ class OolerCoordinator:
         )
 
         # Register for library state change callbacks
-        cleanups.append(
-            self.client.register_callback(self._async_on_state_change)
-        )
+        cleanups.append(self.client.register_callback(self._async_on_state_change))
 
         # Periodic reconnect timer
         cleanups.append(
@@ -117,16 +115,12 @@ class OolerCoordinator:
 
         # Periodic poll timer
         cleanups.append(
-            async_track_time_interval(
-                self.hass, self._async_poll_check, POLL_INTERVAL
-            )
+            async_track_time_interval(self.hass, self._async_poll_check, POLL_INTERVAL)
         )
 
         # Stop on HA shutdown
         cleanups.append(
-            self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STOP, self._async_stop
-            )
+            self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_stop)
         )
 
         return cleanups

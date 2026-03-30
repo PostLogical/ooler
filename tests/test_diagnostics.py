@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from custom_components.ooler.coordinator import OolerCoordinator
 from custom_components.ooler.diagnostics import async_get_config_entry_diagnostics
 

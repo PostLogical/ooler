@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 import pytest
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
@@ -78,9 +81,9 @@ def mock_client() -> MagicMock:
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(
     enable_custom_integrations: None,
-) -> Generator[None]:
+) -> None:
     """Enable custom integrations for all tests."""
-    yield
+    return
 
 
 @pytest.fixture

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 
 from custom_components.ooler.coordinator import OolerCoordinator
@@ -150,7 +149,5 @@ class TestOolerConnectionSwitch:
 
     def test_entity_category(self) -> None:
         """Test connection switch is categorized as diagnostic."""
-        from homeassistant.const import EntityCategory
-
         entity = self._make_entity()
         assert entity.entity_category == EntityCategory.DIAGNOSTIC

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from homeassistant.components.climate import HVACAction, HVACMode
+from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.ooler.climate import Ooler, async_setup_entry
 from custom_components.ooler.coordinator import OolerCoordinator
@@ -57,9 +56,7 @@ async def test_async_setup_entry() -> None:
 class TestOolerClimate:
     """Tests for the Ooler climate entity."""
 
-    def _make_entity(
-        self, *, connected: bool = True, power: bool = True
-    ) -> Ooler:
+    def _make_entity(self, *, connected: bool = True, power: bool = True) -> Ooler:
         client = make_mock_client(connected=connected)
         client.state.power = power
         coordinator = make_coordinator_with_client(client)
@@ -142,8 +139,6 @@ class TestOolerClimate:
 
     def test_supported_features(self) -> None:
         """Test supported features."""
-        from homeassistant.components.climate import ClimateEntityFeature
-
         entity = self._make_entity()
         features = entity.supported_features
         assert features & ClimateEntityFeature.TARGET_TEMPERATURE

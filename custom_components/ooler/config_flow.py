@@ -195,9 +195,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             await client.connect()
             await client.async_poll()
             self._paired = True
-            _LOGGER.debug(
-                "Connection verified for %s", discovery_info.address
-            )
+            _LOGGER.debug("Connection verified for %s", discovery_info.address)
         except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Connection verification failed for %s",

@@ -14,7 +14,7 @@ from custom_components.ooler import (
     async_unload_entry,
 )
 
-from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client
+from .conftest import OOLER_ADDRESS, OOLER_NAME
 
 
 def test_platforms() -> None:

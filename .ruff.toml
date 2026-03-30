@@ -39,12 +39,16 @@ ignore = [
     "S101",   # asserts used for type narrowing (idiomatic HA pattern)
 ]
 "tests/**" = [
-    "S101",   # Use of assert detected (normal in pytest)
-    "PT018",  # Assertion should be broken down into multiple parts
-    "D102",   # Missing docstring in public method
-    "D103",   # Missing docstring in public function
-    "D107",   # Missing docstring in __init__
-    "E501",   # Line too long (prose comments in test fixtures)
+    "S101",    # Use of assert detected (normal in pytest)
+    "PT018",   # Assertion should be broken down into multiple parts
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D107",    # Missing docstring in __init__
+    "E501",    # Line too long (prose comments in test fixtures)
+    "SLF001",  # Private member access — necessary for testing internals
+    "PLR2004", # Magic values — clearer in test assertions than constants
+    "FBT",     # Boolean arguments — fine in test helpers
+    "ARG",     # Unused arguments — common in mock lambdas and fixtures
 ]
 
 [lint.flake8-pytest-style]

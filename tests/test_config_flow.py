@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.ooler.config_flow import OolerConfigFlow
-from custom_components.ooler.const import CONF_MODEL, DOMAIN
+from custom_components.ooler.const import CONF_MODEL
 
 from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client, make_service_info
 
@@ -21,11 +21,13 @@ async def test_bluetooth_discovery() -> None:
 
     service_info = make_service_info()
 
-    with patch.object(flow, "async_set_unique_id", return_value=None):
-        with patch.object(flow, "_abort_if_unique_id_configured"):
-            with patch.object(flow, "async_step_bluetooth_confirm") as mock_confirm:
-                mock_confirm.return_value = {"type": FlowResultType.FORM}
-                result = await flow.async_step_bluetooth(service_info)
+    with (
+        patch.object(flow, "async_set_unique_id", return_value=None),
+        patch.object(flow, "_abort_if_unique_id_configured"),
+        patch.object(flow, "async_step_bluetooth_confirm") as mock_confirm,
+    ):
+        mock_confirm.return_value = {"type": FlowResultType.FORM}
+        await flow.async_step_bluetooth(service_info)
 
     assert flow._discovery_info == service_info
     mock_confirm.assert_called_once()
@@ -39,9 +41,11 @@ async def test_bluetooth_discovery_not_ooler() -> None:
 
     service_info = make_service_info(name="NotOoler")
 
-    with patch.object(flow, "async_set_unique_id", return_value=None):
-        with patch.object(flow, "_abort_if_unique_id_configured"):
-            result = await flow.async_step_bluetooth(service_info)
+    with (
+        patch.object(flow, "async_set_unique_id", return_value=None),
+        patch.object(flow, "_abort_if_unique_id_configured"),
+    ):
+        result = await flow.async_step_bluetooth(service_info)
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "not_supported"
@@ -71,7 +75,7 @@ async def test_bluetooth_confirm_triggers_pairing() -> None:
 
     with patch.object(flow, "async_step_wait_for_pairing_mode") as mock_wait:
         mock_wait.return_value = {"type": FlowResultType.SHOW_PROGRESS}
-        result = await flow.async_step_bluetooth_confirm(user_input={})
+        await flow.async_step_bluetooth_confirm(user_input={})
 
     mock_wait.assert_called_once()
 
@@ -86,7 +90,7 @@ async def test_bluetooth_confirm_already_paired() -> None:
 
     with patch.object(flow, "_create_ooler_entry") as mock_create:
         mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
-        result = await flow.async_step_bluetooth_confirm(user_input={})
+        await flow.async_step_bluetooth_confirm(user_input={})
 
     mock_create.assert_called_once_with(OOLER_NAME)
 
@@ -149,12 +153,14 @@ async def test_user_flow_with_devices() -> None:
     flow.hass = MagicMock()
     service_info = make_service_info()
 
-    with patch.object(flow, "_async_current_ids", return_value=set()):
-        with patch(
+    with (
+        patch.object(flow, "_async_current_ids", return_value=set()),
+        patch(
             "custom_components.ooler.config_flow.async_discovered_service_info",
             return_value=[service_info],
-        ):
-            result = await flow.async_step_user()
+        ),
+    ):
+        result = await flow.async_step_user()
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
@@ -168,7 +174,7 @@ async def test_pairing_timeout_retry() -> None:
 
     with patch.object(flow, "async_step_wait_for_pairing_mode") as mock_wait:
         mock_wait.return_value = {"type": FlowResultType.SHOW_PROGRESS}
-        result = await flow.async_step_pairing_timeout(user_input={})
+        await flow.async_step_pairing_timeout(user_input={})
 
     assert flow._pairing_task is None
     mock_wait.assert_called_once()
@@ -231,13 +237,15 @@ async def test_reconfigure_triggers_pairing() -> None:
     flow.hass.config_entries.async_get_entry.return_value = mock_entry
 
     service_info = make_service_info()
-    with patch(
-        "custom_components.ooler.config_flow.async_last_service_info",
-        return_value=service_info,
+    with (
+        patch(
+            "custom_components.ooler.config_flow.async_last_service_info",
+            return_value=service_info,
+        ),
+        patch.object(flow, "async_step_wait_for_pairing_mode") as mock_wait,
     ):
-        with patch.object(flow, "async_step_wait_for_pairing_mode") as mock_wait:
-            mock_wait.return_value = {"type": FlowResultType.SHOW_PROGRESS}
-            result = await flow.async_step_reconfigure(user_input={})
+        mock_wait.return_value = {"type": FlowResultType.SHOW_PROGRESS}
+        await flow.async_step_reconfigure(user_input={})
 
     mock_wait.assert_called_once()
 
@@ -260,9 +268,7 @@ async def test_user_flow_select_device() -> None:
         patch.object(flow, "async_step_wait_for_pairing_mode") as mock_wait,
     ):
         mock_wait.return_value = {"type": FlowResultType.SHOW_PROGRESS}
-        result = await flow.async_step_user(
-            user_input={"address": OOLER_ADDRESS}
-        )
+        await flow.async_step_user(user_input={"address": OOLER_ADDRESS})
 
     mock_wait.assert_called_once()
 
@@ -286,9 +292,7 @@ async def test_user_flow_select_device_already_paired() -> None:
         patch.object(flow, "_create_ooler_entry") as mock_create,
     ):
         mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
-        result = await flow.async_step_user(
-            user_input={"address": OOLER_ADDRESS}
-        )
+        await flow.async_step_user(user_input={"address": OOLER_ADDRESS})
 
     mock_create.assert_called_once_with(OOLER_NAME)
 
@@ -303,9 +307,7 @@ async def test_user_flow_select_none_model() -> None:
         patch.object(flow, "async_set_unique_id", return_value=None),
         patch.object(flow, "_abort_if_unique_id_configured"),
     ):
-        result = await flow.async_step_user(
-            user_input={"address": OOLER_ADDRESS}
-        )
+        result = await flow.async_step_user(user_input={"address": OOLER_ADDRESS})
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "no_devices_found"
@@ -341,13 +343,14 @@ async def test_wait_for_pairing_starts_task() -> None:
     flow._pairing_task = None
 
     mock_task = MagicMock()
-    flow.hass.async_create_task.side_effect = (
-        lambda coro, **kw: (coro.close(), mock_task)[1]
-    )
+    flow.hass.async_create_task.side_effect = lambda coro, **kw: (
+        coro.close(),
+        mock_task,
+    )[1]
 
     with patch.object(flow, "async_show_progress") as mock_progress:
         mock_progress.return_value = {"type": FlowResultType.SHOW_PROGRESS}
-        result = await flow.async_step_wait_for_pairing_mode()
+        await flow.async_step_wait_for_pairing_mode()
 
     flow.hass.async_create_task.assert_called_once()
     mock_progress.assert_called_once_with(
@@ -366,7 +369,7 @@ async def test_wait_for_pairing_no_discovery_info() -> None:
 
     with patch.object(flow, "async_show_progress_done") as mock_done:
         mock_done.return_value = {"next_step_id": "pairing_timeout"}
-        result = await flow.async_step_wait_for_pairing_mode()
+        await flow.async_step_wait_for_pairing_mode()
 
     mock_done.assert_called_once_with(next_step_id="pairing_timeout")
 
@@ -384,7 +387,7 @@ async def test_wait_for_pairing_existing_task_success() -> None:
 
     with patch.object(flow, "async_show_progress_done") as mock_done:
         mock_done.return_value = {"next_step_id": "pairing_complete"}
-        result = await flow.async_step_wait_for_pairing_mode()
+        await flow.async_step_wait_for_pairing_mode()
 
     mock_done.assert_called_once_with(next_step_id="pairing_complete")
     assert flow._pairing_task is None
@@ -403,15 +406,13 @@ async def test_wait_for_pairing_existing_task_failure() -> None:
 
     with patch.object(flow, "async_show_progress_done") as mock_done:
         mock_done.return_value = {"next_step_id": "pairing_timeout"}
-        result = await flow.async_step_wait_for_pairing_mode()
+        await flow.async_step_wait_for_pairing_mode()
 
     mock_done.assert_called_once_with(next_step_id="pairing_timeout")
 
 
 async def test_wait_for_pairing_existing_task_cancelled() -> None:
     """Test wait_for_pairing with cancelled task."""
-    import asyncio
-
     flow = OolerConfigFlow()
     flow.hass = MagicMock()
 
@@ -422,7 +423,7 @@ async def test_wait_for_pairing_existing_task_cancelled() -> None:
 
     with patch.object(flow, "async_show_progress_done") as mock_done:
         mock_done.return_value = {"next_step_id": "pairing_timeout"}
-        result = await flow.async_step_wait_for_pairing_mode()
+        await flow.async_step_wait_for_pairing_mode()
 
     mock_done.assert_called_once_with(next_step_id="pairing_timeout")
     assert flow._pairing_task is None
@@ -440,7 +441,7 @@ async def test_pairing_complete_creates_entry() -> None:
         patch.object(flow, "_create_ooler_entry") as mock_create,
     ):
         mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
-        result = await flow.async_step_pairing_complete()
+        await flow.async_step_pairing_complete()
 
     mock_create.assert_called_once_with(OOLER_NAME)
 

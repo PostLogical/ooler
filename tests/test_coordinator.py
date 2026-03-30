@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import METRIC_SYSTEM
 
 from custom_components.ooler.coordinator import OolerCoordinator
@@ -27,7 +28,7 @@ def make_mock_hass() -> MagicMock:
     hass = MagicMock()
     hass.config = MagicMock()
     hass.config.units = METRIC_SYSTEM
-    hass.async_create_task = MagicMock(side_effect=lambda coro, **kw: coro.close())
+    hass.async_create_task = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     hass.bus = MagicMock()
     return hass
 
@@ -95,8 +96,6 @@ async def test_coordinator_connect_failure() -> None:
 
 async def test_coordinator_ensure_connected_raises() -> None:
     """Test async_ensure_connected raises HomeAssistantError on failure."""
-    from homeassistant.exceptions import HomeAssistantError
-
     coordinator, client = make_coordinator(connected=False)
     client.connect = AsyncMock(side_effect=TimeoutError)
 
@@ -148,7 +147,7 @@ async def test_coordinator_ensure_connected_inflight_task_fails() -> None:
 
 async def test_coordinator_connection_disabled_skips_reconnect() -> None:
     """Test reconnect is suppressed when connection_enabled is False."""
-    coordinator, client = make_coordinator(connected=False)
+    coordinator, _client = make_coordinator(connected=False)
     coordinator.connection_enabled = False
 
     coordinator._async_reconnect_check()
@@ -330,9 +329,10 @@ async def test_coordinator_schedule_connect_dedup() -> None:
 
     running_task = MagicMock()
     running_task.done.return_value = False
-    coordinator.hass.async_create_task.side_effect = (
-        lambda coro, **kw: (coro.close(), running_task)[1]
-    )
+    coordinator.hass.async_create_task.side_effect = lambda coro, **_kw: (
+        coro.close(),
+        running_task,
+    )[1]
 
     coordinator._schedule_connect()
     assert coordinator.hass.async_create_task.call_count == 1
@@ -412,7 +412,7 @@ async def test_coordinator_async_stop_event() -> None:
 
 async def test_coordinator_stagger_connect() -> None:
     """Test staggered connect applies delay."""
-    coordinator, client = make_coordinator()
+    coordinator, _client = make_coordinator()
 
     with patch("custom_components.ooler.coordinator.asyncio.sleep") as mock_sleep:
         await coordinator._async_connect(stagger=True)

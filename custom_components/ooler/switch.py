@@ -23,10 +23,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Ooler switches."""
     coordinator = config_entry.runtime_data
-    async_add_entities([
-        OolerCleaningSwitch(coordinator),
-        OolerConnectionSwitch(coordinator),
-    ])
+    async_add_entities(
+        [
+            OolerCleaningSwitch(coordinator),
+            OolerConnectionSwitch(coordinator),
+        ]
+    )
 
 
 class OolerCleaningSwitch(OolerEntity, SwitchEntity):

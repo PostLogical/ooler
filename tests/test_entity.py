@@ -55,7 +55,7 @@ class TestOolerEntity:
         entity.entity_id = "test.ooler_entity"
 
         removers: list = []
-        entity.async_on_remove = lambda cb: removers.append(cb)
+        entity.async_on_remove = removers.append
 
         await entity.async_added_to_hass()
 
