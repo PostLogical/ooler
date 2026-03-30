@@ -32,7 +32,7 @@ jobs:
       - name: Install HA component dependencies
         run: |
           python3 -c "
-          import json, subprocess, pathlib, importlib
+          import json, subprocess, pathlib, importlib.util
           ha = pathlib.Path(importlib.util.find_spec('homeassistant').origin).parent
           for comp in ['bluetooth', 'usb', 'bluetooth_adapters']:
               manifest = ha / 'components' / comp / 'manifest.json'
