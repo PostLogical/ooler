@@ -29,5 +29,18 @@ jobs:
       - name: Install requirements
         run: python3 -m pip install -r requirements.txt
 
+      - name: Install HA component dependencies
+        run: |
+          python3 -c "
+          import json, subprocess, pathlib, importlib
+          ha = pathlib.Path(importlib.util.find_spec('homeassistant').origin).parent
+          for comp in ['bluetooth', 'usb', 'bluetooth_adapters']:
+              manifest = ha / 'components' / comp / 'manifest.json'
+              if manifest.exists():
+                  reqs = json.loads(manifest.read_text()).get('requirements', [])
+                  if reqs:
+                      subprocess.check_call(['pip', 'install'] + reqs)
+          "
+
       - name: Run tests
         run: python3 -m pytest tests/ --cov=custom_components/ooler --cov-report=term-missing -W error::RuntimeWarning
