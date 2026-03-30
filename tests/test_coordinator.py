@@ -26,7 +26,7 @@ def make_mock_hass() -> MagicMock:
     hass = MagicMock()
     hass.config = MagicMock()
     hass.config.units = METRIC_SYSTEM
-    hass.async_create_task = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro, **kw: coro.close())
     hass.bus = MagicMock()
     return hass
 
@@ -294,7 +294,9 @@ async def test_coordinator_schedule_connect_dedup() -> None:
 
     running_task = MagicMock()
     running_task.done.return_value = False
-    coordinator.hass.async_create_task.return_value = running_task
+    coordinator.hass.async_create_task.side_effect = (
+        lambda coro, **kw: (coro.close(), running_task)[1]
+    )
 
     coordinator._schedule_connect()
     assert coordinator.hass.async_create_task.call_count == 1
