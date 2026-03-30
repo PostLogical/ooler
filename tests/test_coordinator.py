@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -109,6 +110,40 @@ async def test_coordinator_ensure_connected_already_connected() -> None:
 
     await coordinator.async_ensure_connected()
     client.connect.assert_not_called()
+
+
+async def test_coordinator_ensure_connected_awaits_inflight_task() -> None:
+    """Test async_ensure_connected awaits in-flight connect task."""
+    coordinator, client = make_coordinator(connected=False)
+
+    # Simulate an in-flight connect task that will succeed
+    async def fake_connect() -> None:
+        client.is_connected = True
+
+    task = asyncio.ensure_future(fake_connect())
+    coordinator._connect_task = task
+
+    await coordinator.async_ensure_connected()
+
+    # Should not have called connect() directly — the in-flight task handled it
+    client.connect.assert_not_called()
+
+
+async def test_coordinator_ensure_connected_inflight_task_fails() -> None:
+    """Test async_ensure_connected retries if in-flight task didn't connect."""
+    coordinator, client = make_coordinator(connected=False)
+
+    # Simulate an in-flight connect task that completes but doesn't connect
+    async def fake_connect_fail() -> None:
+        pass  # doesn't set is_connected
+
+    task = asyncio.ensure_future(fake_connect_fail())
+    coordinator._connect_task = task
+
+    await coordinator.async_ensure_connected()
+
+    # Should have called connect() since in-flight task didn't connect
+    client.connect.assert_called_once()
 
 
 async def test_coordinator_connection_disabled_skips_reconnect() -> None:

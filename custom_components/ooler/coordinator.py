@@ -137,15 +137,21 @@ class OolerCoordinator:
 
     async def async_ensure_connected(self) -> None:
         """Ensure the client is connected, raising HomeAssistantError on failure."""
-        if not self.client.is_connected:
-            try:
-                await self.client.connect()
-            except (BleakError, TimeoutError) as err:
-                _LOGGER.warning(
-                    "Failed to connect to Ooler %s", self.address, exc_info=True
-                )
-                msg = f"Failed to connect to Ooler {self.address}"
-                raise HomeAssistantError(msg) from err
+        if self.client.is_connected:
+            return
+        # If a connect is already in-flight, await it instead of starting another
+        if self._connect_task and not self._connect_task.done():
+            await self._connect_task
+            if self.client.is_connected:
+                return
+        try:
+            await self.client.connect()
+        except (BleakError, TimeoutError) as err:
+            _LOGGER.warning(
+                "Failed to connect to Ooler %s", self.address, exc_info=True
+            )
+            msg = f"Failed to connect to Ooler {self.address}"
+            raise HomeAssistantError(msg) from err
 
     async def _async_connect(self, *, stagger: bool = False) -> None:
         """Connect to the device, syncing temperature unit on first connect."""
