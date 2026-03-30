@@ -1,0 +1,11 @@
+Fix BLE proxy crashes, connection handling, and temperature unit detection
+
+- Fix infinite loop crash when discovery_info is None in config flow - this was crashing HA for me on 2026.3.3
+- Add 30s timeout to BLE connection test to prevent HA freezes
+- Use establish_connection() instead of raw BleakClient for ESPHome proxy support
+- Guard against UnknownFlow exception when config flow is dismissed
+- Seed BLE device during setup to prevent AttributeError before callbacks fire
+- Split BLE callbacks: connectable (connect) vs passive (tracking only) - connections failing as they were trying to use my passive shelly trackers not my active ESP ones
+- Detect display temperature unit from device and convert actual_temperature accordingly - wrong temp showed in HA if device on celsius
+- Add comprehensive debug logging throughout config flow and climate entity
+

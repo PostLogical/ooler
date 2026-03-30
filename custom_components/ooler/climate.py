@@ -1,5 +1,4 @@
 """Support for Ooler Sleep System controls."""
-
 from __future__ import annotations
 
 from asyncio import sleep
@@ -19,8 +18,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_platform
+from homeassistant.helpers import device_registry as dr, entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -57,6 +55,12 @@ async def async_setup_entry(
     )
 
 
+# Ooler firmware quirk: set_temperature is always in °F, but actual_temperature
+# is reported in the device's display unit (°C or °F). We declare FAHRENHEIT as
+# our native unit and convert actual_temperature to °F when the device is in °C mode.
+DISPLAY_TEMPERATURE_UNIT_CHAR = "2c988613-fe15-4067-85bc-8e59d5e0b1e3"
+
+
 class Ooler(ClimateEntity, RestoreEntity):
     """Representation of Ooler Thermostat."""
 
@@ -66,6 +70,7 @@ class Ooler(ClimateEntity, RestoreEntity):
     _attr_target_temperature_step = 1
     _attr_min_temp = DEFAULT_MIN_TEMP
     _attr_max_temp = DEFAULT_MAX_TEMP
+    _device_reports_celsius: bool | None = None  # Detected from device
 
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
@@ -123,8 +128,18 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     @property
     def current_temperature(self) -> float | None:
-        """Return the current temperature."""
-        return self._data.client.state.actual_temperature
+        """Return the current temperature.
+
+        The Ooler firmware always sends set_temperature in °F, but
+        actual_temperature uses the device's display unit. We detect
+        this and convert to °F if needed.
+        """
+        actual = self._data.client.state.actual_temperature
+        if actual is None:
+            return None
+        if self._device_reports_celsius:
+            return actual * 9 / 5 + 32
+        return actual
 
     @property
     def fan_mode(self) -> str | None:
@@ -176,6 +191,9 @@ class Ooler(ClimateEntity, RestoreEntity):
     @callback
     def _handle_state_update(self, *args: Any) -> None:
         """Handle state update."""
+        if self._device_reports_celsius is None:
+            # Try to detect the display unit on first state update
+            self.hass.async_create_task(self._async_detect_temperature_unit())
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
@@ -185,6 +203,26 @@ class Ooler(ClimateEntity, RestoreEntity):
             self._data.client.register_callback(self._handle_state_update)
         )
 
+    async def _async_detect_temperature_unit(self) -> None:
+        """Read the display temperature unit characteristic from the device."""
+        client = self._data.client
+        if client._client is None or not client._client.is_connected:
+            return
+        try:
+            unit_byte = await client._client.read_gatt_char(
+                DISPLAY_TEMPERATURE_UNIT_CHAR
+            )
+            # 0 = Fahrenheit, 1 = Celsius (based on Ooler BLE protocol)
+            unit_val = int.from_bytes(unit_byte, "little")
+            self._device_reports_celsius = unit_val == 1
+            _LOGGER.debug(
+                "Ooler display unit detected: %s (raw=%s)",
+                "Celsius" if self._device_reports_celsius else "Fahrenheit",
+                unit_val,
+            )
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.debug("Could not read display temperature unit: %s", err)
+
     # async def async_update(self) -> None:
     #     """Grab the state from device and update HA."""
     #     await self._data.client.async_poll()
@@ -192,7 +230,10 @@ class Ooler(ClimateEntity, RestoreEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
-        power = hvac_mode != HVACMode.OFF
+        if hvac_mode == HVACMode.OFF:
+            power = False
+        else:
+            power = True
         client = self._data.client
         if not client.is_connected:
             _LOGGER.debug("Client not connected. Attempting to connect")
@@ -203,10 +244,7 @@ class Ooler(ClimateEntity, RestoreEntity):
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
         if fan_mode not in self._fan_modes:
-            error = (
-                "Invalid fan_mode value: "
-                "Valid values are 'Silent', 'Regular', and 'Boost'"
-            )
+            error = "Invalid fan_mode value: Valid values are 'Silent', 'Regular', and 'Boost'"
             _LOGGER.error(error)
             return
         client = self._data.client
@@ -239,9 +277,7 @@ class Ooler(ClimateEntity, RestoreEntity):
         await client.set_clean(True)
         _LOGGER.debug("Cleaning the device: %s", self.name)
 
-    # This service function is necessary because the Bluetooth connection is active,
-    # which means when Hass is connected to Ooler, nothing else can connect to Ooler
-    # including the phone app.
+    # This service function is necessary because the Bluetooth connection is active, which means when Hass is connected to Ooler, nothing else can connect to Ooler including the phone app.
     async def async_pause_client(self, sec_delay: int = 60) -> None:
         """Disconnect Hass from the device."""
         await self._data.client.stop()
