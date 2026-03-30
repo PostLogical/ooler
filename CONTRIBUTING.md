@@ -13,11 +13,30 @@ Github is used to host code, to track issues and feature requests, as well as ac
 
 Pull requests are the best way to propose changes to the codebase.
 
-1. Fork the repo and create your branch from `main`.
+1. Fork the repo and create your branch from `master`.
 2. If you've changed something, update the documentation.
-3. Make sure your code lints (using `scripts/lint`).
-4. Test you contribution.
+3. Make sure your code lints (`ruff check .`).
+4. Run the test suite (`pytest`) and ensure 100% coverage is maintained.
 5. Issue that pull request!
+
+## Development environment
+
+This project includes a devcontainer for VS Code. Opening the project in the container gives you a ready-to-go environment with all dependencies installed.
+
+### Running tests
+
+```bash
+pytest tests/ --cov=custom_components/ooler --cov-report=term-missing
+```
+
+The project requires 100% test coverage. New code must include tests.
+
+### Linting
+
+```bash
+ruff check .
+ruff format --check .
+```
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -41,21 +60,6 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
 People *love* thorough bug reports. I'm not even kidding.
-
-## Use a Consistent Coding Style
-
-Use [black](https://github.com/ambv/black) to make sure the code follows the style.
-
-## Test your code modification
-This custom component is based on [EufyLife](https://www.home-assistant.io/integrations/eufylife_ble/).
-
-The HACS scaffolding is based on [integration_blueprint template](https://github.com/ludeeus/integration_blueprint).
-
-It comes with development environment in a container, easy to launch
-if you use Visual Studio Code. With this container you will have a stand alone
-Home Assistant instance running and already configured with the included
-[`configuration.yaml`](./configuration.yaml)
-file.
 
 ## License
 

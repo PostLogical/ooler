@@ -4,8 +4,7 @@
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]](LICENSE)
 
-[![pre-commit][pre-commit-shield]][pre-commit]
-[![Black][black-shield]][black]
+[![Ruff][ruff-shield]][ruff]
 
 [![hacs][hacsbadge]][hacs]
 [![Project Maintenance][maintenance-shield]][user_profile]
@@ -122,6 +121,36 @@ automation:
           entity_id: climate.ooler_92106080601
 ```
 
+**Disconnect for Ooler app access:**
+```yaml
+automation:
+  - alias: "Ooler disconnect for app"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.ooler_app_mode
+        to: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ooler_92106080601_bluetooth_connection
+```
+
+**Boost mode during hot nights:**
+```yaml
+automation:
+  - alias: "Ooler boost when hot"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.bedroom_temperature
+        above: 78
+    action:
+      - service: climate.set_fan_mode
+        target:
+          entity_id: climate.ooler_92106080601
+        data:
+          fan_mode: "Boost"
+```
+
 ## Contributions are welcome!
 
 If you want to contribute to this please read the [Contribution guidelines](CONTRIBUTING.md)
@@ -132,15 +161,17 @@ The code for this integration was primarily based on the official [EufyLife inte
 
 This readme and some supporting HACS elements were generated from [@oncleben31](https://github.com/oncleben31)'s [Home Assistant Custom Component Cookiecutter](https://github.com/oncleben31/cookiecutter-homeassistant-custom-component) template.
 
+Development of this integration is assisted by [Claude Code](https://claude.ai/claude-code) (Anthropic). Claude is used as a development tool for code generation, testing, and analysis. All code changes are reviewed, tested, and approved by the maintainer before being merged.
+
 ---
 
 [integration_blueprint]: https://github.com/custom-components/integration_blueprint
-[black]: https://github.com/psf/black
-[black-shield]: https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge
+[ruff]: https://github.com/astral-sh/ruff
+[ruff-shield]: https://img.shields.io/badge/code%20style-ruff-000000.svg?style=for-the-badge
 [buymecoffee]: https://www.buymeacoffee.com/PostLogical
 [buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
 [commits-shield]: https://img.shields.io/github/commit-activity/y/PostLogical/ooler.svg?style=for-the-badge
-[commits]: https://github.com/PostLogical/ooler/commits/main
+[commits]: https://github.com/PostLogical/ooler/commits/master
 [hacs]: https://hacs.xyz
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
 [discord]: https://discord.gg/Qa5fW2R
@@ -150,8 +181,6 @@ This readme and some supporting HACS elements were generated from [@oncleben31](
 [forum]: https://community.home-assistant.io/
 [license-shield]: https://img.shields.io/github/license/PostLogical/ooler.svg?style=for-the-badge
 [maintenance-shield]: https://img.shields.io/badge/maintainer-%40PostLogical-blue.svg?style=for-the-badge
-[pre-commit]: https://github.com/pre-commit/pre-commit
-[pre-commit-shield]: https://img.shields.io/badge/pre--commit-enabled-brightgreen?style=for-the-badge
 [releases-shield]: https://img.shields.io/github/release/PostLogical/ooler.svg?style=for-the-badge
 [releases]: https://github.com/PostLogical/ooler/releases
 [user_profile]: https://github.com/PostLogical
