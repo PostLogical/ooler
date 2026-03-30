@@ -69,7 +69,7 @@ async def test_unload_entry() -> None:
 
 
 async def test_unload_entry_failure() -> None:
-    """Test async_unload_entry does not stop coordinator on unload failure."""
+    """Test async_unload_entry still stops coordinator on platform unload failure."""
     hass = MagicMock(spec=HomeAssistant)
     hass.config_entries = MagicMock()
     hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
@@ -83,4 +83,4 @@ async def test_unload_entry_failure() -> None:
     result = await async_unload_entry(hass, entry)
 
     assert result is False
-    mock_coordinator.async_stop.assert_not_called()
+    mock_coordinator.async_stop.assert_called_once()
