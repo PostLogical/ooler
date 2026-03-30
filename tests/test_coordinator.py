@@ -193,10 +193,11 @@ async def test_coordinator_listeners() -> None:
 
 
 async def test_coordinator_stop() -> None:
-    """Test coordinator stop disconnects the client."""
+    """Test coordinator stop disables reconnect and disconnects the client."""
     coordinator, client = make_coordinator()
 
     await coordinator.async_stop()
+    assert coordinator.connection_enabled is False
     client.stop.assert_called_once()
 
 

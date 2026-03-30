@@ -133,6 +133,7 @@ class OolerCoordinator:
 
     async def async_stop(self) -> None:
         """Disconnect from the device."""
+        self.connection_enabled = False
         await self.client.stop()
 
     async def async_ensure_connected(self) -> None:
