@@ -341,7 +341,9 @@ async def test_wait_for_pairing_starts_task() -> None:
     flow._pairing_task = None
 
     mock_task = MagicMock()
-    flow.hass.async_create_task.return_value = mock_task
+    flow.hass.async_create_task.side_effect = (
+        lambda coro, **kw: (coro.close(), mock_task)[1]
+    )
 
     with patch.object(flow, "async_show_progress") as mock_progress:
         mock_progress.return_value = {"type": FlowResultType.SHOW_PROGRESS}

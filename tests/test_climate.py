@@ -175,6 +175,23 @@ class TestOolerClimate:
         entity.coordinator.client.state.set_temperature = 72
         assert entity.hvac_action == HVACAction.IDLE
 
+    def test_hvac_action_none_temps(self) -> None:
+        """Test HVAC action is IDLE when temperatures are None."""
+        entity = self._make_entity()
+        entity.coordinator.client.state.actual_temperature = None
+        entity.coordinator.client.state.set_temperature = None
+        assert entity.hvac_action == HVACAction.IDLE
+
+        entity = self._make_entity()
+        entity.coordinator.client.state.actual_temperature = 72
+        entity.coordinator.client.state.set_temperature = None
+        assert entity.hvac_action == HVACAction.IDLE
+
+        entity = self._make_entity()
+        entity.coordinator.client.state.actual_temperature = None
+        entity.coordinator.client.state.set_temperature = 72
+        assert entity.hvac_action == HVACAction.IDLE
+
     def test_cleaning(self) -> None:
         """Test cleaning property."""
         entity = self._make_entity()

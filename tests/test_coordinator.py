@@ -390,3 +390,35 @@ async def test_coordinator_is_connected() -> None:
 
     coordinator, _ = make_coordinator(connected=False)
     assert coordinator.is_connected is False
+
+
+async def test_coordinator_state_change_disabled() -> None:
+    """Test state change does not reconnect when connection_enabled is False."""
+    coordinator, _ = make_coordinator(connected=False)
+    coordinator.connection_enabled = False
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    coordinator._async_on_state_change()
+
+    assert listener_called  # listeners still notified
+    coordinator.hass.async_create_task.assert_not_called()  # no reconnect
+
+
+async def test_coordinator_update_ble_disconnected_disabled() -> None:
+    """Test BLE callback does not reconnect when connection_enabled is False."""
+    coordinator, client = make_coordinator(connected=False)
+    coordinator.connection_enabled = False
+
+    service_info = MagicMock()
+    service_info.device = MagicMock()
+
+    coordinator._async_update_ble(service_info, MagicMock())
+
+    client.set_ble_device.assert_called_once()  # device still updated
+    coordinator.hass.async_create_task.assert_not_called()  # no reconnect
