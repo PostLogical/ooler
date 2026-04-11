@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from bleak.exc import BleakError
 from homeassistant.components.bluetooth import (
@@ -21,7 +22,7 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util.unit_system import METRIC_SYSTEM
-from ooler_ble_client import OolerBLEDevice, TemperatureUnit
+from ooler_ble_client import OolerBLEDevice, OolerSleepSchedule, TemperatureUnit
 
 from .const import _LOGGER, CONF_MODEL
 
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 RECONNECT_INTERVAL = timedelta(seconds=60)
 POLL_INTERVAL = timedelta(minutes=5)
+CLOCK_SYNC_INTERVAL = timedelta(hours=4)
 
 
 class OolerCoordinator:
@@ -53,6 +55,7 @@ class OolerCoordinator:
         self._listeners: list[Callable[[], None]] = []
         self._connect_task: asyncio.Task[None] | None = None
         self._unit_synced: bool = False
+        self._cached_sleep_schedule: OolerSleepSchedule | None = None
         self._ha_unit: TemperatureUnit = (
             "C" if hass.config.units is METRIC_SYSTEM else "F"
         )
@@ -118,6 +121,13 @@ class OolerCoordinator:
             async_track_time_interval(self.hass, self._async_poll_check, POLL_INTERVAL)
         )
 
+        # Periodic clock sync timer
+        cleanups.append(
+            async_track_time_interval(
+                self.hass, self._async_clock_sync_check, CLOCK_SYNC_INTERVAL
+            )
+        )
+
         # Stop on HA shutdown
         cleanups.append(
             self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_stop)
@@ -149,7 +159,7 @@ class OolerCoordinator:
             raise HomeAssistantError(msg) from err
 
     async def _async_connect(self, *, stagger: bool = False) -> None:
-        """Connect to the device, syncing temperature unit on first connect."""
+        """Connect to the device, syncing settings on first connect."""
         try:
             if stagger:
                 await asyncio.sleep(self._reconnect_delay)
@@ -165,10 +175,25 @@ class OolerCoordinator:
                 )
                 await self.client.set_temperature_unit(self._ha_unit)
             self._unit_synced = True
+            await self._async_post_connect()
         except (BleakError, TimeoutError):
             _LOGGER.warning(
                 "Failed to connect to Ooler %s", self.address, exc_info=True
             )
+
+    async def _async_post_connect(self) -> None:
+        """Read sleep schedule and sync clock after connecting."""
+        try:
+            schedule = await self.client.read_sleep_schedule()
+            if schedule.nights:
+                self._cached_sleep_schedule = schedule
+        except (BleakError, TimeoutError):
+            _LOGGER.debug(
+                "Failed to read sleep schedule from Ooler %s",
+                self.address,
+                exc_info=True,
+            )
+        await self._async_sync_clock()
 
     def _schedule_connect(self, *, stagger: bool = False) -> None:
         """Schedule a connection attempt if one isn't already running."""
@@ -223,6 +248,50 @@ class OolerCoordinator:
             _LOGGER.debug(
                 "Periodic poll failed for Ooler %s", self.address, exc_info=True
             )
+
+    async def _async_sync_clock(self) -> None:
+        """Sync the device clock to HA's timezone."""
+        try:
+            tz = ZoneInfo(self.hass.config.time_zone)
+            await self.client.sync_clock(datetime.now(tz))
+        except (BleakError, TimeoutError):
+            _LOGGER.debug(
+                "Failed to sync clock on Ooler %s", self.address, exc_info=True
+            )
+
+    @callback
+    def _async_clock_sync_check(self, _now: object = None) -> None:
+        """Periodically sync the device clock."""
+        if self.connection_enabled and self.client.is_connected:
+            self.hass.async_create_task(self._async_sync_clock())
+
+    @property
+    def sleep_schedule_active(self) -> bool:
+        """Return whether a sleep schedule is active on the device."""
+        schedule = self.client.sleep_schedule
+        return schedule is not None and bool(schedule.nights)
+
+    @property
+    def cached_sleep_schedule(self) -> OolerSleepSchedule | None:
+        """Return the cached sleep schedule for re-enabling."""
+        return self._cached_sleep_schedule
+
+    async def async_enable_sleep_schedule(self) -> None:
+        """Re-enable the cached sleep schedule on the device."""
+        if self._cached_sleep_schedule is None:
+            msg = "No cached sleep schedule to enable"
+            raise HomeAssistantError(msg)
+        await self.async_ensure_connected()
+        await self.client.set_sleep_schedule(self._cached_sleep_schedule.nights)
+        self._async_notify_listeners()
+
+    async def async_disable_sleep_schedule(self) -> None:
+        """Disable the sleep schedule on the device, caching it first."""
+        if self.sleep_schedule_active:
+            self._cached_sleep_schedule = self.client.sleep_schedule
+        await self.async_ensure_connected()
+        await self.client.clear_sleep_schedule()
+        self._async_notify_listeners()
 
     async def _async_stop(self, _event: Event) -> None:
         """Close the connection on HA shutdown."""

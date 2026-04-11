@@ -26,6 +26,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             OolerCleaningSwitch(coordinator),
+            OolerSleepScheduleSwitch(coordinator),
             OolerConnectionSwitch(coordinator),
         ]
     )
@@ -58,6 +59,45 @@ class OolerCleaningSwitch(OolerEntity, SwitchEntity):
         """Stop cleaning the unit."""
         await self.coordinator.async_ensure_connected()
         await self.coordinator.client.set_clean(False)
+
+
+class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
+    """Representation of Ooler sleep schedule toggle."""
+
+    _attr_translation_key = "sleep_schedule"
+
+    def __init__(self, coordinator: OolerCoordinator) -> None:
+        """Initialize the switch entity."""
+        super().__init__(coordinator)
+        self._attr_name = "Sleep Schedule"
+        self._attr_unique_id = f"{coordinator.address}_sleep_schedule"
+
+    @property
+    def available(self) -> bool:
+        """Return whether the switch is available.
+
+        Unavailable when disconnected or when there is no schedule to toggle
+        (no active schedule and no cached schedule to re-enable).
+        """
+        if not self.coordinator.is_connected:
+            return False
+        return (
+            self.coordinator.sleep_schedule_active
+            or self.coordinator.cached_sleep_schedule is not None
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if a sleep schedule is active on the device."""
+        return self.coordinator.sleep_schedule_active
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable the cached sleep schedule on the device."""
+        await self.coordinator.async_enable_sleep_schedule()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable the sleep schedule on the device."""
+        await self.coordinator.async_disable_sleep_schedule()
 
 
 class OolerConnectionSwitch(OolerEntity, SwitchEntity):

@@ -11,6 +11,7 @@ from custom_components.ooler.coordinator import OolerCoordinator
 from custom_components.ooler.switch import (
     OolerCleaningSwitch,
     OolerConnectionSwitch,
+    OolerSleepScheduleSwitch,
     async_setup_entry,
 )
 
@@ -46,9 +47,10 @@ async def test_async_setup_entry() -> None:
 
     await async_setup_entry(hass, entry, mock_add_entities)
 
-    assert len(added_entities) == 2
+    assert len(added_entities) == 3
     assert isinstance(added_entities[0], OolerCleaningSwitch)
-    assert isinstance(added_entities[1], OolerConnectionSwitch)
+    assert isinstance(added_entities[1], OolerSleepScheduleSwitch)
+    assert isinstance(added_entities[2], OolerConnectionSwitch)
 
 
 class TestOolerCleaningSwitch:
@@ -103,6 +105,78 @@ class TestOolerCleaningSwitch:
         entity = self._make_entity()
         await entity.async_turn_off()
         entity.coordinator.client.set_clean.assert_called_once_with(False)
+
+
+class TestOolerSleepScheduleSwitch:
+    """Tests for the sleep schedule switch."""
+
+    def _make_entity(
+        self, *, connected: bool = True, schedule_active: bool = False
+    ) -> OolerSleepScheduleSwitch:
+        client = make_mock_client(connected=connected)
+        coordinator = make_coordinator_with_client(client)
+        coordinator.sleep_schedule_active = schedule_active
+        coordinator.cached_sleep_schedule = None
+        return OolerSleepScheduleSwitch(coordinator)
+
+    def test_unique_id(self) -> None:
+        """Test unique ID format."""
+        entity = self._make_entity()
+        assert entity.unique_id == f"{OOLER_ADDRESS}_sleep_schedule"
+
+    def test_name(self) -> None:
+        """Test entity name."""
+        entity = self._make_entity()
+        assert entity.name == "Sleep Schedule"
+
+    def test_is_on_active(self) -> None:
+        """Test is_on when schedule is active."""
+        entity = self._make_entity(schedule_active=True)
+        assert entity.is_on is True
+
+    def test_is_on_inactive(self) -> None:
+        """Test is_on when schedule is inactive."""
+        entity = self._make_entity(schedule_active=False)
+        assert entity.is_on is False
+
+    def test_available_no_cache(self) -> None:
+        """Test switch unavailable when no cached schedule and not active."""
+        entity = self._make_entity(schedule_active=False)
+        entity.coordinator.cached_sleep_schedule = None
+        assert entity.available is False
+
+    def test_available_with_cache(self) -> None:
+        """Test switch available when cached schedule exists."""
+        from .conftest import make_mock_schedule
+
+        entity = self._make_entity(connected=True)
+        entity.coordinator.cached_sleep_schedule = make_mock_schedule()
+        assert entity.available is True
+
+    def test_available_when_active(self) -> None:
+        """Test switch available when schedule is active."""
+        entity = self._make_entity(connected=True, schedule_active=True)
+        assert entity.available is True
+
+    def test_available_when_disconnected(self) -> None:
+        """Test switch unavailable when disconnected."""
+        from .conftest import make_mock_schedule
+
+        entity = self._make_entity(connected=False)
+        entity.coordinator.cached_sleep_schedule = make_mock_schedule()
+        assert entity.available is False
+
+    async def test_turn_on(self) -> None:
+        """Test turning on enables the sleep schedule."""
+        entity = self._make_entity()
+        await entity.async_turn_on()
+        entity.coordinator.async_enable_sleep_schedule.assert_called_once()
+
+    async def test_turn_off(self) -> None:
+        """Test turning off disables the sleep schedule."""
+        entity = self._make_entity()
+        await entity.async_turn_off()
+        entity.coordinator.async_disable_sleep_schedule.assert_called_once()
 
 
 class TestOolerConnectionSwitch:

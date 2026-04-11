@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import time
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,6 +13,7 @@ import pytest
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight, WarmWake
 
 from custom_components.ooler.const import CONF_MODEL, DOMAIN
 
@@ -54,11 +56,39 @@ def make_mock_state() -> MagicMock:
     return state
 
 
+def make_mock_schedule() -> OolerSleepSchedule:
+    """Create a sample sleep schedule for testing."""
+    return OolerSleepSchedule(
+        nights=[
+            SleepScheduleNight(
+                day=0,
+                temps=[(time(22, 0), 68), (time(2, 0), 62)],
+                off_time=time(6, 0),
+                warm_wake=WarmWake(target_temp_f=116, duration_min=30),
+            ),
+            SleepScheduleNight(
+                day=1,
+                temps=[(time(22, 0), 68)],
+                off_time=time(6, 0),
+                warm_wake=None,
+            ),
+        ],
+        seq=5,
+    )
+
+
+def make_empty_schedule() -> OolerSleepSchedule:
+    """Create an empty (disabled) sleep schedule."""
+    return OolerSleepSchedule(nights=[], seq=0)
+
+
 def make_mock_client(connected: bool = True) -> MagicMock:
     """Create a mock OolerBLEDevice."""
     client = MagicMock()
     client.is_connected = connected
     client.state = make_mock_state()
+    client.sleep_schedule = None
+    client.sleep_schedule_events = []
     client.connect = AsyncMock()
     client.stop = AsyncMock()
     client.async_poll = AsyncMock()
@@ -69,6 +99,10 @@ def make_mock_client(connected: bool = True) -> MagicMock:
     client.set_temperature_unit = AsyncMock()
     client.set_ble_device = MagicMock()
     client.register_callback = MagicMock(return_value=lambda: None)
+    client.read_sleep_schedule = AsyncMock(return_value=make_empty_schedule())
+    client.set_sleep_schedule = AsyncMock()
+    client.clear_sleep_schedule = AsyncMock()
+    client.sync_clock = AsyncMock()
     return client
 
 

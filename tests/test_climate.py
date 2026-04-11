@@ -12,7 +12,13 @@ from homeassistant.core import HomeAssistant
 from custom_components.ooler.climate import Ooler, async_setup_entry
 from custom_components.ooler.coordinator import OolerCoordinator
 
-from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client
+from .conftest import (
+    OOLER_ADDRESS,
+    OOLER_NAME,
+    make_empty_schedule,
+    make_mock_client,
+    make_mock_schedule,
+)
 
 
 def make_coordinator_with_client(
@@ -233,6 +239,47 @@ class TestOolerClimate:
         entity = self._make_entity()
         with pytest.raises(ValueError, match="No target temperature"):
             await entity.async_set_temperature()
+
+    def test_extra_state_attributes_with_schedule(self) -> None:
+        """Test extra state attributes with an active sleep schedule."""
+        entity = self._make_entity()
+        entity.coordinator.client.sleep_schedule = make_mock_schedule()
+
+        attrs = entity.extra_state_attributes
+        assert attrs is not None
+        assert attrs["sleep_schedule_days"] == ["monday", "tuesday"]
+        assert len(attrs["sleep_schedule_nights"]) == 2
+
+        night0 = attrs["sleep_schedule_nights"][0]
+        assert night0["day"] == "monday"
+        assert night0["bedtime"] == "22:00"
+        assert night0["off_time"] == "06:00"
+        assert night0["temps"] == [
+            {"time": "22:00", "temp_f": 68},
+            {"time": "02:00", "temp_f": 62},
+        ]
+        assert night0["warm_wake"] == {
+            "target_temp_f": 116,
+            "duration_min": 30,
+        }
+
+        night1 = attrs["sleep_schedule_nights"][1]
+        assert night1["day"] == "tuesday"
+        assert "warm_wake" not in night1
+
+    def test_extra_state_attributes_no_schedule(self) -> None:
+        """Test extra state attributes when no schedule is set."""
+        entity = self._make_entity()
+        entity.coordinator.client.sleep_schedule = None
+
+        assert entity.extra_state_attributes is None
+
+    def test_extra_state_attributes_empty_schedule(self) -> None:
+        """Test extra state attributes with empty schedule."""
+        entity = self._make_entity()
+        entity.coordinator.client.sleep_schedule = make_empty_schedule()
+
+        assert entity.extra_state_attributes is None
 
     async def test_set_clean(self) -> None:
         """Test starting clean cycle."""

@@ -144,6 +144,38 @@ class Ooler(OolerEntity, ClimateEntity):
         return self._attr_supported_features
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return sleep schedule details as extra state attributes."""
+        schedule = self.coordinator.client.sleep_schedule
+        if schedule is None or not schedule.nights:
+            return None
+        day_names = [
+            "monday", "tuesday", "wednesday", "thursday",
+            "friday", "saturday", "sunday",
+        ]
+        nights = []
+        for night in schedule.nights:
+            night_dict: dict[str, Any] = {
+                "day": day_names[night.day],
+                "bedtime": night.temps[0][0].strftime("%H:%M") if night.temps else None,
+                "off_time": night.off_time.strftime("%H:%M"),
+                "temps": [
+                    {"time": t.strftime("%H:%M"), "temp_f": temp}
+                    for t, temp in night.temps
+                ],
+            }
+            if night.warm_wake is not None:
+                night_dict["warm_wake"] = {
+                    "target_temp_f": night.warm_wake.target_temp_f,
+                    "duration_min": night.warm_wake.duration_min,
+                }
+            nights.append(night_dict)
+        return {
+            "sleep_schedule_days": [day_names[n.day] for n in schedule.nights],
+            "sleep_schedule_nights": nights,
+        }
+
+    @property
     def cleaning(self) -> bool | None:
         """Return if the unit is cleaning itself."""
         return self.coordinator.client.state.clean

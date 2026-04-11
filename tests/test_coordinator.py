@@ -10,9 +10,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import METRIC_SYSTEM
 
-from custom_components.ooler.coordinator import OolerCoordinator
+from custom_components.ooler.coordinator import CLOCK_SYNC_INTERVAL, OolerCoordinator
 
-from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client
+from .conftest import (
+    OOLER_ADDRESS,
+    OOLER_NAME,
+    make_mock_client,
+    make_mock_schedule,
+)
 
 
 def make_mock_entry() -> MagicMock:
@@ -28,6 +33,7 @@ def make_mock_hass() -> MagicMock:
     hass = MagicMock()
     hass.config = MagicMock()
     hass.config.units = METRIC_SYSTEM
+    hass.config.time_zone = "UTC"
     hass.async_create_task = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     hass.bus = MagicMock()
     return hass
@@ -226,8 +232,8 @@ async def test_coordinator_async_start(hass: HomeAssistant) -> None:
     ):
         cleanups = await coordinator.async_start()
 
-    # BLE callback, state callback, reconnect timer, poll timer, HA stop
-    assert len(cleanups) == 5
+    # BLE callback, state callback, reconnect timer, poll timer, clock sync timer, HA stop
+    assert len(cleanups) == 6
 
 
 async def test_coordinator_async_start_no_ble_device(
@@ -260,7 +266,7 @@ async def test_coordinator_async_start_no_ble_device(
         cleanups = await coordinator.async_start()
 
     client.set_ble_device.assert_not_called()
-    assert len(cleanups) == 5
+    assert len(cleanups) == 6
 
 
 async def test_coordinator_update_ble_connected() -> None:
@@ -458,3 +464,235 @@ async def test_coordinator_update_ble_disconnected_disabled() -> None:
 
     client.set_ble_device.assert_called_once()  # device still updated
     coordinator.hass.async_create_task.assert_not_called()  # no reconnect
+
+
+async def test_coordinator_post_connect_reads_schedule() -> None:
+    """Test post-connect reads sleep schedule and caches it."""
+    coordinator, client = make_coordinator(connected=False)
+    schedule = make_mock_schedule()
+    client.read_sleep_schedule = AsyncMock(return_value=schedule)
+
+    await coordinator._async_post_connect()
+
+    client.read_sleep_schedule.assert_called_once()
+    assert coordinator._cached_sleep_schedule is schedule
+    client.sync_clock.assert_called_once()
+
+
+async def test_coordinator_post_connect_empty_schedule_not_cached() -> None:
+    """Test post-connect does not cache an empty schedule."""
+    from .conftest import make_empty_schedule
+
+    coordinator, client = make_coordinator()
+    client.read_sleep_schedule = AsyncMock(return_value=make_empty_schedule())
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._cached_sleep_schedule is None
+
+
+async def test_coordinator_post_connect_schedule_read_failure() -> None:
+    """Test post-connect handles schedule read failure gracefully."""
+    from bleak.exc import BleakError
+
+    coordinator, client = make_coordinator()
+    client.read_sleep_schedule = AsyncMock(side_effect=BleakError("read failed"))
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._cached_sleep_schedule is None
+    # Clock sync still attempted after schedule read failure
+    client.sync_clock.assert_called_once()
+
+
+async def test_coordinator_sync_clock() -> None:
+    """Test clock sync sends HA timezone to device."""
+    coordinator, client = make_coordinator()
+    coordinator.hass.config.time_zone = "America/New_York"
+
+    await coordinator._async_sync_clock()
+
+    client.sync_clock.assert_called_once()
+    call_arg = client.sync_clock.call_args[0][0]
+    assert call_arg.tzinfo is not None
+
+
+async def test_coordinator_sync_clock_failure() -> None:
+    """Test clock sync handles failure gracefully."""
+    coordinator, client = make_coordinator()
+    coordinator.hass.config.time_zone = "America/New_York"
+    client.sync_clock = AsyncMock(side_effect=TimeoutError)
+
+    await coordinator._async_sync_clock()  # should not raise
+
+
+async def test_coordinator_clock_sync_check_connected() -> None:
+    """Test clock sync check creates task when connected."""
+    coordinator, _ = make_coordinator(connected=True)
+
+    coordinator._async_clock_sync_check()
+    coordinator.hass.async_create_task.assert_called_once()
+
+
+async def test_coordinator_clock_sync_check_disconnected() -> None:
+    """Test clock sync check is no-op when disconnected."""
+    coordinator, _ = make_coordinator(connected=False)
+
+    coordinator._async_clock_sync_check()
+    coordinator.hass.async_create_task.assert_not_called()
+
+
+async def test_coordinator_clock_sync_check_disabled() -> None:
+    """Test clock sync check is no-op when connection disabled."""
+    coordinator, _ = make_coordinator(connected=True)
+    coordinator.connection_enabled = False
+
+    coordinator._async_clock_sync_check()
+    coordinator.hass.async_create_task.assert_not_called()
+
+
+async def test_coordinator_cached_sleep_schedule_property() -> None:
+    """Test cached_sleep_schedule property returns cached value."""
+    coordinator, _ = make_coordinator()
+    assert coordinator.cached_sleep_schedule is None
+
+    schedule = make_mock_schedule()
+    coordinator._cached_sleep_schedule = schedule
+    assert coordinator.cached_sleep_schedule is schedule
+
+
+async def test_coordinator_sleep_schedule_active() -> None:
+    """Test sleep_schedule_active property."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+
+    assert coordinator.sleep_schedule_active is True
+
+
+async def test_coordinator_sleep_schedule_not_active() -> None:
+    """Test sleep_schedule_active is False when no schedule."""
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = None
+
+    assert coordinator.sleep_schedule_active is False
+
+
+async def test_coordinator_sleep_schedule_empty_not_active() -> None:
+    """Test sleep_schedule_active is False with empty nights."""
+    from .conftest import make_empty_schedule
+
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = make_empty_schedule()
+
+    assert coordinator.sleep_schedule_active is False
+
+
+async def test_coordinator_enable_sleep_schedule() -> None:
+    """Test enabling the cached sleep schedule."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    coordinator._cached_sleep_schedule = schedule
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_enable_sleep_schedule()
+
+    client.set_sleep_schedule.assert_called_once_with(schedule.nights)
+    assert listener_called
+
+
+async def test_coordinator_enable_sleep_schedule_no_cache() -> None:
+    """Test enabling sleep schedule raises when no cache."""
+    coordinator, _ = make_coordinator()
+    coordinator._cached_sleep_schedule = None
+
+    with pytest.raises(HomeAssistantError, match="No cached sleep schedule"):
+        await coordinator.async_enable_sleep_schedule()
+
+
+async def test_coordinator_disable_sleep_schedule() -> None:
+    """Test disabling the sleep schedule caches and clears."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_disable_sleep_schedule()
+
+    assert coordinator._cached_sleep_schedule is schedule
+    client.clear_sleep_schedule.assert_called_once()
+    assert listener_called
+
+
+async def test_coordinator_disable_sleep_schedule_already_empty() -> None:
+    """Test disabling when no active schedule still clears device."""
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = None
+
+    await coordinator.async_disable_sleep_schedule()
+
+    client.clear_sleep_schedule.assert_called_once()
+    assert coordinator._cached_sleep_schedule is None
+
+
+async def test_coordinator_async_start_has_clock_sync_timer(
+    hass: HomeAssistant,
+) -> None:
+    """Test async_start registers clock sync timer."""
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice",
+        return_value=make_mock_client(),
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    with (
+        patch(
+            "custom_components.ooler.coordinator.async_ble_device_from_address",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.ooler.coordinator.async_register_callback",
+            return_value=lambda: None,
+        ),
+        patch(
+            "custom_components.ooler.coordinator.async_track_time_interval",
+            return_value=lambda: None,
+        ) as mock_track,
+    ):
+        cleanups = await coordinator.async_start()
+
+    # BLE callback, state callback, reconnect timer, poll timer, clock sync timer, HA stop
+    assert len(cleanups) == 6
+    # Verify clock sync timer was registered with correct interval
+    intervals = [call.args[2] for call in mock_track.call_args_list]
+    assert CLOCK_SYNC_INTERVAL in intervals
+
+
+async def test_coordinator_connect_calls_post_connect() -> None:
+    """Test _async_connect calls _async_post_connect after unit sync."""
+    coordinator, client = make_coordinator(connected=False)
+    client.state.temperature_unit = "F"
+    coordinator._ha_unit = "F"
+    schedule = make_mock_schedule()
+    client.read_sleep_schedule = AsyncMock(return_value=schedule)
+    coordinator.hass.config.time_zone = "UTC"
+
+    await coordinator._async_connect()
+
+    client.read_sleep_schedule.assert_called_once()
+    client.sync_clock.assert_called_once()
+    assert coordinator._cached_sleep_schedule is schedule

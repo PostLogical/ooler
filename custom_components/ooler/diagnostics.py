@@ -17,6 +17,16 @@ async def async_get_config_entry_diagnostics(
     client = coordinator.client
     state = client.state
 
+    schedule = client.sleep_schedule
+    schedule_data: dict[str, Any] = {"active": False}
+    if schedule is not None and schedule.nights:
+        schedule_data = {
+            "active": True,
+            "seq": schedule.seq,
+            "night_count": len(schedule.nights),
+            "days": [n.day for n in schedule.nights],
+        }
+
     return {
         "config_entry": {
             "unique_id": entry.unique_id,
@@ -35,4 +45,5 @@ async def async_get_config_entry_diagnostics(
             "water_level": state.water_level,
             "clean": state.clean,
         },
+        "sleep_schedule": schedule_data,
     }

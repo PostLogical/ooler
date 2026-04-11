@@ -38,6 +38,9 @@
       "cleaning": {
         "name": "Cleaning"
       },
+      "sleep_schedule": {
+        "name": "Sleep Schedule"
+      },
       "bluetooth_connection": {
         "name": "Bluetooth Connection"
       }
