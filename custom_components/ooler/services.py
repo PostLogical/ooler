@@ -5,11 +5,10 @@ from __future__ import annotations
 from datetime import time
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from ooler_ble_client import SleepScheduleNight, WarmWake
 
 from .const import DOMAIN
@@ -19,49 +18,50 @@ SERVICE_DELETE_SCHEDULE = "delete_schedule"
 SERVICE_LOAD_SCHEDULE = "load_schedule"
 SERVICE_SET_SCHEDULE = "set_schedule"
 
-SCHEMA_SAVE_SCHEDULE = vol.Schema(
-    {vol.Required("name"): str}
-)
-
-SCHEMA_DELETE_SCHEDULE = vol.Schema(
-    {vol.Required("name"): str}
-)
-
-SCHEMA_LOAD_SCHEDULE = vol.Schema(
-    {vol.Required("name"): str}
-)
-
-SCHEMA_SET_SCHEDULE = vol.Schema(
-    {vol.Required("nights"): list}
-)
-
 
 def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
-    """Resolve the coordinator from a service call's device target."""
+    """Resolve the coordinator from a service call target.
+
+    Supports both device_id and entity_id targeting.
+    """
     from . import OolerConfigEntry
 
+    # Try device_id first
     device_ids = call.data.get("device_id")
-    if not device_ids:
-        msg = "No device specified"
-        raise HomeAssistantError(msg)
-    device_id = device_ids[0] if isinstance(device_ids, list) else device_ids
+    if device_ids:
+        device_id = device_ids[0] if isinstance(device_ids, list) else device_ids
+        device_registry = dr.async_get(hass)
+        device_entry = device_registry.async_get(device_id)
+        if device_entry is not None:
+            for entry_id in device_entry.config_entries:
+                entry: OolerConfigEntry | None = (
+                    hass.config_entries.async_get_entry(entry_id)
+                )
+                if (
+                    entry is not None
+                    and entry.domain == DOMAIN
+                    and entry.state is ConfigEntryState.LOADED
+                ):
+                    return entry.runtime_data
 
-    device_registry = dr.async_get(hass)
-    device_entry = device_registry.async_get(device_id)
-    if device_entry is None:
-        msg = f"Device {device_id} not found"
-        raise HomeAssistantError(msg)
+    # Fall back to entity_id
+    entity_ids = call.data.get("entity_id")
+    if entity_ids:
+        entity_id = (
+            entity_ids[0] if isinstance(entity_ids, list) else entity_ids
+        )
+        ent_registry = er.async_get(hass)
+        ent_entry = ent_registry.async_get(entity_id)
+        if ent_entry is not None and ent_entry.config_entry_id is not None:
+            entry = hass.config_entries.async_get_entry(ent_entry.config_entry_id)
+            if (
+                entry is not None
+                and entry.domain == DOMAIN
+                and entry.state is ConfigEntryState.LOADED
+            ):
+                return entry.runtime_data
 
-    for entry_id in device_entry.config_entries:
-        entry: OolerConfigEntry | None = hass.config_entries.async_get_entry(entry_id)
-        if (
-            entry is not None
-            and entry.domain == DOMAIN
-            and entry.state is ConfigEntryState.LOADED
-        ):
-            return entry.runtime_data
-
-    msg = f"No loaded Ooler config entry for device {device_id}"
+    msg = "No Ooler device found for the given target"
     raise HomeAssistantError(msg)
 
 
@@ -167,19 +167,15 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_SCHEDULE, handle_save_schedule,
-        schema=SCHEMA_SAVE_SCHEDULE,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_SCHEDULE, handle_delete_schedule,
-        schema=SCHEMA_DELETE_SCHEDULE,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_LOAD_SCHEDULE, handle_load_schedule,
-        schema=SCHEMA_LOAD_SCHEDULE,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_SCHEDULE, handle_set_schedule,
-        schema=SCHEMA_SET_SCHEDULE,
     )
 
 

@@ -166,27 +166,27 @@ class TestParseNights:
 class TestGetCoordinator:
     """Tests for _get_coordinator helper."""
 
-    def test_no_device_id(self) -> None:
-        """Test error when no device specified."""
+    def test_no_target(self) -> None:
+        """Test error when no target specified."""
         hass = MagicMock()
         call = MagicMock(spec=ServiceCall)
         call.data = {}
-        with pytest.raises(HomeAssistantError, match="No device"):
+        with pytest.raises(HomeAssistantError, match="No Ooler device found"):
             _get_coordinator(hass, call)
 
     def test_device_not_found(self) -> None:
-        """Test error when device not in registry."""
+        """Test falls through when device not in registry."""
         hass = MagicMock()
         call = make_mock_call({})
-        with patch(
-            "custom_components.ooler.services.dr.async_get"
-        ) as mock_dr:
+        with (
+            patch("custom_components.ooler.services.dr.async_get") as mock_dr,
+            pytest.raises(HomeAssistantError, match="No Ooler device found"),
+        ):
             mock_dr.return_value.async_get.return_value = None
-            with pytest.raises(HomeAssistantError, match="not found"):
-                _get_coordinator(hass, call)
+            _get_coordinator(hass, call)
 
-    def test_no_ooler_entry(self) -> None:
-        """Test error when device has no Ooler config entry."""
+    def test_no_ooler_entry_for_device(self) -> None:
+        """Test falls through when device has no Ooler config entry."""
         hass = MagicMock()
         call = make_mock_call({})
 
@@ -197,16 +197,16 @@ class TestGetCoordinator:
         other_entry.domain = "other"
         other_entry.state = ConfigEntryState.LOADED
 
-        with patch(
-            "custom_components.ooler.services.dr.async_get"
-        ) as mock_dr:
+        with (
+            patch("custom_components.ooler.services.dr.async_get") as mock_dr,
+            pytest.raises(HomeAssistantError, match="No Ooler device found"),
+        ):
             mock_dr.return_value.async_get.return_value = device_entry
             hass.config_entries.async_get_entry.return_value = other_entry
-            with pytest.raises(HomeAssistantError, match="No loaded Ooler"):
-                _get_coordinator(hass, call)
+            _get_coordinator(hass, call)
 
-    def test_found_coordinator(self) -> None:
-        """Test successfully resolving coordinator."""
+    def test_found_via_device_id(self) -> None:
+        """Test successfully resolving coordinator via device_id."""
         hass = MagicMock()
         call = make_mock_call({})
 
@@ -251,6 +251,83 @@ class TestGetCoordinator:
             result = _get_coordinator(hass, call)
 
         assert result is mock_coordinator
+
+    def test_found_via_entity_id(self) -> None:
+        """Test resolving coordinator via entity_id fallback."""
+        hass = MagicMock()
+        call = MagicMock(spec=ServiceCall)
+        call.data = {"entity_id": "climate.ooler"}
+
+        mock_coordinator = MagicMock()
+        config_entry = MagicMock()
+        config_entry.domain = DOMAIN
+        config_entry.state = ConfigEntryState.LOADED
+        config_entry.runtime_data = mock_coordinator
+
+        ent_entry = MagicMock()
+        ent_entry.config_entry_id = "entry_123"
+
+        with patch(
+            "custom_components.ooler.services.er.async_get"
+        ) as mock_er:
+            mock_er.return_value.async_get.return_value = ent_entry
+            hass.config_entries.async_get_entry.return_value = config_entry
+            result = _get_coordinator(hass, call)
+
+        assert result is mock_coordinator
+
+    def test_entity_id_as_list(self) -> None:
+        """Test entity_id passed as a list."""
+        hass = MagicMock()
+        call = MagicMock(spec=ServiceCall)
+        call.data = {"entity_id": ["climate.ooler"]}
+
+        mock_coordinator = MagicMock()
+        config_entry = MagicMock()
+        config_entry.domain = DOMAIN
+        config_entry.state = ConfigEntryState.LOADED
+        config_entry.runtime_data = mock_coordinator
+
+        ent_entry = MagicMock()
+        ent_entry.config_entry_id = "entry_123"
+
+        with patch(
+            "custom_components.ooler.services.er.async_get"
+        ) as mock_er:
+            mock_er.return_value.async_get.return_value = ent_entry
+            hass.config_entries.async_get_entry.return_value = config_entry
+            result = _get_coordinator(hass, call)
+
+        assert result is mock_coordinator
+
+    def test_entity_not_in_registry(self) -> None:
+        """Test error when entity not found in registry."""
+        hass = MagicMock()
+        call = MagicMock(spec=ServiceCall)
+        call.data = {"entity_id": "climate.nonexistent"}
+
+        with (
+            patch("custom_components.ooler.services.er.async_get") as mock_er,
+            pytest.raises(HomeAssistantError, match="No Ooler device found"),
+        ):
+            mock_er.return_value.async_get.return_value = None
+            _get_coordinator(hass, call)
+
+    def test_entity_no_config_entry(self) -> None:
+        """Test error when entity has no config entry."""
+        hass = MagicMock()
+        call = MagicMock(spec=ServiceCall)
+        call.data = {"entity_id": "climate.ooler"}
+
+        ent_entry = MagicMock()
+        ent_entry.config_entry_id = None
+
+        with (
+            patch("custom_components.ooler.services.er.async_get") as mock_er,
+            pytest.raises(HomeAssistantError, match="No Ooler device found"),
+        ):
+            mock_er.return_value.async_get.return_value = ent_entry
+            _get_coordinator(hass, call)
 
 
 class TestServiceRegistration:

@@ -65,11 +65,14 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        """Return tonight's bedtime temperature, or None if no schedule."""
+        """Return a summary of tonight's schedule."""
         night = self.coordinator.tonight_schedule
         if night is None or not night.temps:
             return None
-        return str(night.temps[0][1])
+        bedtime = night.temps[0][0].strftime("%I:%M %p").lstrip("0")
+        off = night.off_time.strftime("%I:%M %p").lstrip("0")
+        temp = night.temps[0][1]
+        return f"{bedtime}–{off}, {temp}°F"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

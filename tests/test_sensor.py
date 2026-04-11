@@ -121,7 +121,7 @@ class TestOolerScheduleTonightSensor:
         assert entity.native_value is None
 
     def test_native_value_with_schedule(self) -> None:
-        """Test value is the bedtime temperature."""
+        """Test value is a human-readable schedule summary."""
         night = SleepScheduleNight(
             day=0,
             temps=[(time(22, 0), 68), (time(2, 0), 62)],
@@ -129,7 +129,7 @@ class TestOolerScheduleTonightSensor:
             warm_wake=None,
         )
         entity = self._make_entity(tonight=night)
-        assert entity.native_value == "68"
+        assert entity.native_value == "10:00 PM\u20136:00 AM, 68°F"
 
     def test_native_value_empty_temps(self) -> None:
         """Test value is None when temps list is empty."""
