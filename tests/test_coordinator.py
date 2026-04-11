@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import METRIC_SYSTEM
+from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight, WarmWake
 
-from custom_components.ooler.coordinator import CLOCK_SYNC_INTERVAL, OolerCoordinator
+from custom_components.ooler.coordinator import (
+    CLOCK_SYNC_INTERVAL,
+    OolerCoordinator,
+    _deserialize_schedule,
+    _serialize_schedule,
+)
 
 from .conftest import (
     OOLER_ADDRESS,
@@ -696,3 +703,385 @@ async def test_coordinator_connect_calls_post_connect() -> None:
     client.read_sleep_schedule.assert_called_once()
     client.sync_clock.assert_called_once()
     assert coordinator._cached_sleep_schedule is schedule
+
+
+# --- Serialization tests ---
+
+
+class TestScheduleSerialization:
+    """Tests for schedule serialization and deserialization."""
+
+    def test_round_trip(self) -> None:
+        """Test serialize -> deserialize produces equivalent schedule."""
+        original = make_mock_schedule()
+        data = _serialize_schedule(original)
+        restored = _deserialize_schedule(data)
+
+        assert len(restored.nights) == len(original.nights)
+        for orig_night, rest_night in zip(
+            original.nights, restored.nights, strict=True
+        ):
+            assert orig_night.day == rest_night.day
+            assert orig_night.off_time == rest_night.off_time
+            assert orig_night.temps == rest_night.temps
+            if orig_night.warm_wake is not None:
+                assert rest_night.warm_wake is not None
+                assert (
+                    orig_night.warm_wake.target_temp_f
+                    == rest_night.warm_wake.target_temp_f
+                )
+                assert (
+                    orig_night.warm_wake.duration_min
+                    == rest_night.warm_wake.duration_min
+                )
+            else:
+                assert rest_night.warm_wake is None
+        assert restored.seq == original.seq
+
+    def test_serialize_no_warm_wake(self) -> None:
+        """Test serialization with no warm wake."""
+        schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                )
+            ],
+            seq=1,
+        )
+        data = _serialize_schedule(schedule)
+        assert data["nights"][0]["warm_wake"] is None
+
+        restored = _deserialize_schedule(data)
+        assert restored.nights[0].warm_wake is None
+
+    def test_serialize_multiple_temps(self) -> None:
+        """Test serialization preserves multiple temp zones."""
+        schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[
+                        (time(22, 0), 68),
+                        (time(2, 0), 62),
+                        (time(4, 0), 70),
+                    ],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                )
+            ],
+            seq=1,
+        )
+        data = _serialize_schedule(schedule)
+        restored = _deserialize_schedule(data)
+
+        assert len(restored.nights[0].temps) == 3
+        assert restored.nights[0].temps[1] == (time(2, 0), 62)
+
+    def test_deserialize_missing_seq(self) -> None:
+        """Test deserialization defaults seq to 0."""
+        data = {
+            "nights": [
+                {
+                    "day": 0,
+                    "temps": [["22:00", 68]],
+                    "off_time": "06:00",
+                    "warm_wake": None,
+                }
+            ]
+        }
+        schedule = _deserialize_schedule(data)
+        assert schedule.seq == 0
+
+
+# --- Tonight schedule tests ---
+
+
+async def test_coordinator_tonight_schedule_with_match() -> None:
+    """Test tonight_schedule returns matching night."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+    coordinator.hass.config.time_zone = "UTC"
+
+    with patch(
+        "custom_components.ooler.coordinator.datetime"
+    ) as mock_dt:
+        mock_now = MagicMock()
+        mock_now.weekday.return_value = 0  # Monday
+        mock_dt.now.return_value = mock_now
+        result = coordinator.tonight_schedule
+
+    assert result is not None
+    assert result.day == 0
+
+
+async def test_coordinator_tonight_schedule_no_match() -> None:
+    """Test tonight_schedule returns None when day not in schedule."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()  # Has day 0 and day 1
+    client.sleep_schedule = schedule
+    coordinator.hass.config.time_zone = "UTC"
+
+    with patch(
+        "custom_components.ooler.coordinator.datetime"
+    ) as mock_dt:
+        mock_now = MagicMock()
+        mock_now.weekday.return_value = 5  # Saturday
+        mock_dt.now.return_value = mock_now
+        result = coordinator.tonight_schedule
+
+    assert result is None
+
+
+async def test_coordinator_tonight_schedule_no_schedule() -> None:
+    """Test tonight_schedule returns None when no schedule."""
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = None
+
+    assert coordinator.tonight_schedule is None
+
+
+async def test_coordinator_tonight_schedule_empty() -> None:
+    """Test tonight_schedule returns None with empty schedule."""
+    from .conftest import make_empty_schedule
+
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = make_empty_schedule()
+
+    assert coordinator.tonight_schedule is None
+
+
+# --- Storage tests ---
+
+
+async def test_coordinator_load_store_empty() -> None:
+    """Test loading store when no data exists."""
+    coordinator, _ = make_coordinator()
+    coordinator._store = MagicMock()
+    coordinator._store.async_load = AsyncMock(return_value=None)
+
+    await coordinator.async_load_store()
+
+    assert coordinator._saved_schedules == {}
+
+
+async def test_coordinator_load_store_with_data() -> None:
+    """Test loading store restores saved schedules."""
+    coordinator, _ = make_coordinator()
+    schedule = make_mock_schedule()
+    serialized = _serialize_schedule(schedule)
+
+    coordinator._store = MagicMock()
+    coordinator._store.async_load = AsyncMock(
+        return_value={"schedules": {"weekday": serialized}}
+    )
+
+    await coordinator.async_load_store()
+
+    assert "weekday" in coordinator._saved_schedules
+    assert len(coordinator._saved_schedules["weekday"].nights) == 2
+
+
+async def test_coordinator_save_schedule() -> None:
+    """Test saving the current device schedule."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+    coordinator._store = MagicMock()
+    coordinator._store.async_save = AsyncMock()
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_save_schedule("weekday")
+
+    assert "weekday" in coordinator._saved_schedules
+    assert coordinator._active_saved_name == "weekday"
+    coordinator._store.async_save.assert_called_once()
+    assert listener_called
+
+
+async def test_coordinator_save_schedule_no_active() -> None:
+    """Test saving raises when no active schedule."""
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = None
+
+    with pytest.raises(HomeAssistantError, match="No active schedule"):
+        await coordinator.async_save_schedule("test")
+
+
+async def test_coordinator_save_schedule_empty_active() -> None:
+    """Test saving raises when schedule has no nights."""
+    from .conftest import make_empty_schedule
+
+    coordinator, client = make_coordinator()
+    client.sleep_schedule = make_empty_schedule()
+
+    with pytest.raises(HomeAssistantError, match="No active schedule"):
+        await coordinator.async_save_schedule("test")
+
+
+async def test_coordinator_delete_saved_schedule() -> None:
+    """Test deleting a saved schedule."""
+    coordinator, _ = make_coordinator()
+    coordinator._saved_schedules = {"weekday": make_mock_schedule()}
+    coordinator._active_saved_name = "weekday"
+    coordinator._store = MagicMock()
+    coordinator._store.async_save = AsyncMock()
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_delete_saved_schedule("weekday")
+
+    assert "weekday" not in coordinator._saved_schedules
+    assert coordinator._active_saved_name is None
+    coordinator._store.async_save.assert_called_once()
+    assert listener_called
+
+
+async def test_coordinator_delete_saved_schedule_not_active() -> None:
+    """Test deleting a schedule that isn't the active one."""
+    coordinator, _ = make_coordinator()
+    coordinator._saved_schedules = {
+        "weekday": make_mock_schedule(),
+        "weekend": make_mock_schedule(),
+    }
+    coordinator._active_saved_name = "weekday"
+    coordinator._store = MagicMock()
+    coordinator._store.async_save = AsyncMock()
+
+    await coordinator.async_delete_saved_schedule("weekend")
+
+    assert coordinator._active_saved_name == "weekday"  # unchanged
+
+
+async def test_coordinator_delete_saved_schedule_not_found() -> None:
+    """Test deleting a nonexistent schedule raises."""
+    coordinator, _ = make_coordinator()
+
+    with pytest.raises(HomeAssistantError, match="No saved schedule named"):
+        await coordinator.async_delete_saved_schedule("nonexistent")
+
+
+async def test_coordinator_load_saved_schedule() -> None:
+    """Test loading a saved schedule writes to device."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    coordinator._saved_schedules = {"weekday": schedule}
+    coordinator._store = MagicMock()
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_load_saved_schedule("weekday")
+
+    client.set_sleep_schedule.assert_called_once_with(schedule.nights)
+    assert coordinator._active_saved_name == "weekday"
+    assert listener_called
+
+
+async def test_coordinator_load_saved_schedule_not_found() -> None:
+    """Test loading a nonexistent schedule raises."""
+    coordinator, _ = make_coordinator()
+
+    with pytest.raises(HomeAssistantError, match="No saved schedule named"):
+        await coordinator.async_load_saved_schedule("nonexistent")
+
+
+async def test_coordinator_write_sleep_schedule() -> None:
+    """Test writing a schedule directly to device."""
+    coordinator, client = make_coordinator()
+    nights = make_mock_schedule().nights
+
+    listener_called = False
+
+    def listener() -> None:
+        nonlocal listener_called
+        listener_called = True
+
+    coordinator.async_add_listener(listener)
+    await coordinator.async_write_sleep_schedule(nights)
+
+    client.set_sleep_schedule.assert_called_once_with(nights)
+    assert coordinator._active_saved_name is None
+    assert listener_called
+
+
+async def test_coordinator_disable_clears_active_name() -> None:
+    """Test disabling schedule clears the active saved name."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+    coordinator._active_saved_name = "weekday"
+
+    await coordinator.async_disable_sleep_schedule()
+
+    assert coordinator._active_saved_name is None
+
+
+async def test_coordinator_saved_schedules_property() -> None:
+    """Test saved_schedules property returns the dict."""
+    coordinator, _ = make_coordinator()
+    schedule = make_mock_schedule()
+    coordinator._saved_schedules = {"test": schedule}
+
+    assert coordinator.saved_schedules == {"test": schedule}
+
+
+async def test_coordinator_active_saved_name_property() -> None:
+    """Test active_saved_name property."""
+    coordinator, _ = make_coordinator()
+    assert coordinator.active_saved_name is None
+
+    coordinator._active_saved_name = "test"
+    assert coordinator.active_saved_name == "test"
+
+
+async def test_coordinator_async_start_loads_store(
+    hass: HomeAssistant,
+) -> None:
+    """Test async_start loads the schedule store."""
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice",
+        return_value=make_mock_client(),
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    with (
+        patch(
+            "custom_components.ooler.coordinator.async_ble_device_from_address",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.ooler.coordinator.async_register_callback",
+            return_value=lambda: None,
+        ),
+        patch(
+            "custom_components.ooler.coordinator.async_track_time_interval",
+            return_value=lambda: None,
+        ),
+        patch.object(
+            coordinator, "async_load_store", new_callable=AsyncMock
+        ) as mock_load,
+    ):
+        await coordinator.async_start()
+
+    mock_load.assert_called_once()

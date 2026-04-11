@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from datetime import datetime, time, timedelta
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from bleak.exc import BleakError
@@ -21,10 +21,17 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 from homeassistant.util.unit_system import METRIC_SYSTEM
-from ooler_ble_client import OolerBLEDevice, OolerSleepSchedule, TemperatureUnit
+from ooler_ble_client import (
+    OolerBLEDevice,
+    OolerSleepSchedule,
+    SleepScheduleNight,
+    TemperatureUnit,
+    WarmWake,
+)
 
-from .const import _LOGGER, CONF_MODEL
+from .const import DOMAIN, _LOGGER, CONF_MODEL
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -32,6 +39,56 @@ if TYPE_CHECKING:
 RECONNECT_INTERVAL = timedelta(seconds=60)
 POLL_INTERVAL = timedelta(minutes=5)
 CLOCK_SYNC_INTERVAL = timedelta(hours=4)
+
+STORAGE_VERSION = 1
+
+
+def _serialize_schedule(schedule: OolerSleepSchedule) -> dict[str, Any]:
+    """Serialize an OolerSleepSchedule to a JSON-compatible dict."""
+    nights = []
+    for night in schedule.nights:
+        night_dict: dict[str, Any] = {
+            "day": night.day,
+            "temps": [[t.strftime("%H:%M"), temp] for t, temp in night.temps],
+            "off_time": night.off_time.strftime("%H:%M"),
+        }
+        if night.warm_wake is not None:
+            night_dict["warm_wake"] = {
+                "target_temp_f": night.warm_wake.target_temp_f,
+                "duration_min": night.warm_wake.duration_min,
+            }
+        else:
+            night_dict["warm_wake"] = None
+        nights.append(night_dict)
+    return {"nights": nights, "seq": schedule.seq}
+
+
+def _deserialize_schedule(data: dict[str, Any]) -> OolerSleepSchedule:
+    """Deserialize a JSON dict back to an OolerSleepSchedule."""
+    nights = []
+    for night_data in data["nights"]:
+        warm_wake = None
+        if night_data.get("warm_wake") is not None:
+            ww = night_data["warm_wake"]
+            warm_wake = WarmWake(
+                target_temp_f=ww["target_temp_f"],
+                duration_min=ww["duration_min"],
+            )
+        temps = []
+        for time_str, temp_f in night_data["temps"]:
+            h, m = time_str.split(":")
+            temps.append((time(int(h), int(m)), temp_f))
+        nights.append(
+            SleepScheduleNight(
+                day=night_data["day"],
+                temps=temps,
+                off_time=time(
+                    *map(int, night_data["off_time"].split(":"))
+                ),
+                warm_wake=warm_wake,
+            )
+        )
+    return OolerSleepSchedule(nights=nights, seq=data.get("seq", 0))
 
 
 class OolerCoordinator:
@@ -63,6 +120,14 @@ class OolerCoordinator:
             int(address.replace(":", ""), 16) % 1500 + 500
         ) / 1000
 
+        self._store: Store[dict[str, Any]] = Store(
+            hass,
+            STORAGE_VERSION,
+            f"{DOMAIN}.{address}.schedules",
+        )
+        self._saved_schedules: dict[str, OolerSleepSchedule] = {}
+        self._active_saved_name: str | None = None
+
     @property
     def is_connected(self) -> bool:
         """Return whether the device is connected."""
@@ -88,6 +153,9 @@ class OolerCoordinator:
     async def async_start(self) -> list[CALLBACK_TYPE]:
         """Start the coordinator and return cleanup callbacks."""
         cleanups: list[CALLBACK_TYPE] = []
+
+        # Load saved schedules from persistent storage
+        await self.async_load_store()
 
         # Seed BLEDevice from HA cache
         ble_device = async_ble_device_from_address(
@@ -291,6 +359,94 @@ class OolerCoordinator:
             self._cached_sleep_schedule = self.client.sleep_schedule
         await self.async_ensure_connected()
         await self.client.clear_sleep_schedule()
+        self._active_saved_name = None
+        self._async_notify_listeners()
+
+    async def async_write_sleep_schedule(
+        self, nights: list[SleepScheduleNight]
+    ) -> None:
+        """Write a sleep schedule to the device."""
+        await self.async_ensure_connected()
+        await self.client.set_sleep_schedule(nights)
+        self._cached_sleep_schedule = self.client.sleep_schedule
+        self._active_saved_name = None
+        self._async_notify_listeners()
+
+    # --- Schedule storage ---
+
+    @property
+    def saved_schedules(self) -> dict[str, OolerSleepSchedule]:
+        """Return the saved schedules dictionary."""
+        return self._saved_schedules
+
+    @property
+    def active_saved_name(self) -> str | None:
+        """Return the name of the currently active saved schedule, if any."""
+        return self._active_saved_name
+
+    @property
+    def tonight_schedule(self) -> SleepScheduleNight | None:
+        """Return the schedule for tonight based on current day of week."""
+        schedule = self.client.sleep_schedule
+        if schedule is None or not schedule.nights:
+            return None
+        tz = ZoneInfo(self.hass.config.time_zone)
+        today = datetime.now(tz).weekday()  # 0=Monday, 6=Sunday
+        for night in schedule.nights:
+            if night.day == today:
+                return night
+        return None
+
+    async def async_load_store(self) -> None:
+        """Load saved schedules from persistent storage."""
+        data = await self._store.async_load()
+        if data is None:
+            return
+        for name, schedule_data in data.get("schedules", {}).items():
+            self._saved_schedules[name] = _deserialize_schedule(schedule_data)
+
+    async def _async_save_store(self) -> None:
+        """Persist saved schedules to storage."""
+        data: dict[str, Any] = {
+            "schedules": {
+                name: _serialize_schedule(schedule)
+                for name, schedule in self._saved_schedules.items()
+            }
+        }
+        await self._store.async_save(data)
+
+    async def async_save_schedule(self, name: str) -> None:
+        """Save the current device schedule with a name."""
+        schedule = self.client.sleep_schedule
+        if schedule is None or not schedule.nights:
+            msg = "No active schedule on device to save"
+            raise HomeAssistantError(msg)
+        self._saved_schedules[name] = schedule
+        self._active_saved_name = name
+        await self._async_save_store()
+        self._async_notify_listeners()
+
+    async def async_delete_saved_schedule(self, name: str) -> None:
+        """Delete a saved schedule by name."""
+        if name not in self._saved_schedules:
+            msg = f"No saved schedule named '{name}'"
+            raise HomeAssistantError(msg)
+        del self._saved_schedules[name]
+        if self._active_saved_name == name:
+            self._active_saved_name = None
+        await self._async_save_store()
+        self._async_notify_listeners()
+
+    async def async_load_saved_schedule(self, name: str) -> None:
+        """Load a saved schedule onto the device."""
+        if name not in self._saved_schedules:
+            msg = f"No saved schedule named '{name}'"
+            raise HomeAssistantError(msg)
+        schedule = self._saved_schedules[name]
+        await self.async_ensure_connected()
+        await self.client.set_sleep_schedule(schedule.nights)
+        self._cached_sleep_schedule = self.client.sleep_schedule
+        self._active_saved_name = name
         self._async_notify_listeners()
 
     async def _async_stop(self, _event: Event) -> None:

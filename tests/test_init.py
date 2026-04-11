@@ -20,6 +20,7 @@ from .conftest import OOLER_ADDRESS, OOLER_NAME
 def test_platforms() -> None:
     """Test platform list is correct."""
     assert Platform.CLIMATE in PLATFORMS
+    assert Platform.SELECT in PLATFORMS
     assert Platform.SENSOR in PLATFORMS
     assert Platform.SWITCH in PLATFORMS
 
@@ -38,9 +39,14 @@ async def test_setup_entry() -> None:
     entry.data = {"model": OOLER_NAME}
     entry.async_on_unload = MagicMock()
 
-    with patch(
-        "custom_components.ooler.OolerCoordinator",
-        return_value=mock_coordinator,
+    with (
+        patch(
+            "custom_components.ooler.OolerCoordinator",
+            return_value=mock_coordinator,
+        ),
+        patch(
+            "custom_components.ooler.async_register_services",
+        ) as mock_register,
     ):
         result = await async_setup_entry(hass, entry)
 
@@ -48,24 +54,57 @@ async def test_setup_entry() -> None:
     assert entry.runtime_data == mock_coordinator
     hass.config_entries.async_forward_entry_setups.assert_called_once()
     entry.async_on_unload.assert_called()
+    mock_register.assert_called_once_with(hass)
 
 
 async def test_unload_entry() -> None:
-    """Test async_unload_entry stops coordinator."""
+    """Test async_unload_entry stops coordinator and unregisters services."""
     hass = MagicMock(spec=HomeAssistant)
     hass.config_entries = MagicMock()
     hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    hass.config_entries.async_entries = MagicMock(return_value=[])
 
     mock_coordinator = MagicMock()
     mock_coordinator.async_stop = AsyncMock()
 
     entry = MagicMock(spec=OolerConfigEntry)
+    entry.entry_id = "test_entry_id"
     entry.runtime_data = mock_coordinator
 
-    result = await async_unload_entry(hass, entry)
+    with patch(
+        "custom_components.ooler.async_unregister_services",
+    ) as mock_unregister:
+        result = await async_unload_entry(hass, entry)
 
     assert result is True
     mock_coordinator.async_stop.assert_called_once()
+    mock_unregister.assert_called_once_with(hass)
+
+
+async def test_unload_entry_keeps_services_with_remaining() -> None:
+    """Test unload doesn't unregister services when other entries remain."""
+    hass = MagicMock(spec=HomeAssistant)
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+
+    other_entry = MagicMock()
+    other_entry.entry_id = "other_entry_id"
+    hass.config_entries.async_entries = MagicMock(return_value=[other_entry])
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.async_stop = AsyncMock()
+
+    entry = MagicMock(spec=OolerConfigEntry)
+    entry.entry_id = "test_entry_id"
+    entry.runtime_data = mock_coordinator
+
+    with patch(
+        "custom_components.ooler.async_unregister_services",
+    ) as mock_unregister:
+        result = await async_unload_entry(hass, entry)
+
+    assert result is True
+    mock_unregister.assert_not_called()
 
 
 async def test_unload_entry_failure() -> None:
@@ -78,9 +117,14 @@ async def test_unload_entry_failure() -> None:
     mock_coordinator.async_stop = AsyncMock()
 
     entry = MagicMock(spec=OolerConfigEntry)
+    entry.entry_id = "test_entry_id"
     entry.runtime_data = mock_coordinator
 
-    result = await async_unload_entry(hass, entry)
+    with patch(
+        "custom_components.ooler.async_unregister_services",
+    ) as mock_unregister:
+        result = await async_unload_entry(hass, entry)
 
     assert result is False
     mock_coordinator.async_stop.assert_called_once()
+    mock_unregister.assert_not_called()

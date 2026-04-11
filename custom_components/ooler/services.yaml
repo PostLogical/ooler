@@ -5,3 +5,71 @@ clean_service:
     entity:
       integration: ooler
       domain: climate
+
+save_schedule:
+  name: Save schedule
+  description: Save the current device schedule with a name for later use.
+  target:
+    device:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: A name for this schedule (e.g., "weekday", "vacation").
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+delete_schedule:
+  name: Delete schedule
+  description: Delete a previously saved schedule.
+  target:
+    device:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: The name of the saved schedule to delete.
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+load_schedule:
+  name: Load schedule
+  description: Write a previously saved schedule to the device.
+  target:
+    device:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: The name of the saved schedule to load.
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+set_schedule:
+  name: Set schedule
+  description: >-
+    Write a schedule directly to the device. Each entry in "nights" defines a
+    temperature program that is replicated across the listed days. Use
+    "temperature" for a single bedtime temp, or "temps" for multiple mid-night
+    temperature changes.
+  target:
+    device:
+      integration: ooler
+  fields:
+    nights:
+      name: Nights
+      description: >-
+        List of night definitions. Each has "days" (list of day numbers,
+        0=Monday through 6=Sunday), "bedtime", "off_time", and either
+        "temperature" (single value) or "temps" (list of {time, temperature}
+        for mid-night changes). Optional "warm_wake" with "temperature" and
+        "duration".
+      required: true
+      selector:
+        object:

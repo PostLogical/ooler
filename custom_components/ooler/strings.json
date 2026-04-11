@@ -29,9 +29,17 @@
     }
   },
   "entity": {
+    "select": {
+      "saved_schedule": {
+        "name": "Saved Schedule"
+      }
+    },
     "sensor": {
       "water_level": {
         "name": "Water Level"
+      },
+      "schedule_tonight": {
+        "name": "Schedule Tonight"
       }
     },
     "switch": {
@@ -50,6 +58,46 @@
     "clean_service": {
       "name": "Clean",
       "description": "Activates the UV light to clean the Ooler water system."
+    },
+    "save_schedule": {
+      "name": "Save schedule",
+      "description": "Save the current device schedule with a name for later use.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "A name for this schedule (e.g., \"weekday\", \"vacation\")."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Delete schedule",
+      "description": "Delete a previously saved schedule.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to delete."
+        }
+      }
+    },
+    "load_schedule": {
+      "name": "Load schedule",
+      "description": "Write a previously saved schedule to the device.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to load."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Write a schedule directly to the device.",
+      "fields": {
+        "nights": {
+          "name": "Nights",
+          "description": "List of night definitions with days, bedtime, off_time, temperature/temps, and optional warm_wake."
+        }
+      }
     }
   }
 }
