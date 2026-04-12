@@ -9,10 +9,11 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from ooler_ble_client import WarmWake
+from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight, WarmWake
 
 from custom_components.ooler.const import DOMAIN
 from custom_components.ooler.services import (
+    _format_schedule_response,
     _get_coordinator,
     _parse_nights,
     _parse_time,
@@ -346,6 +347,7 @@ class TestServiceRegistration:
             call.args[1] for call in hass.services.async_register.call_args_list
         }
         assert registered == {
+            "get_schedule",
             "save_schedule",
             "delete_schedule",
             "load_schedule",
@@ -359,6 +361,7 @@ class TestServiceRegistration:
 
         removed = {call.args[1] for call in hass.services.async_remove.call_args_list}
         assert removed == {
+            "get_schedule",
             "save_schedule",
             "delete_schedule",
             "load_schedule",
@@ -496,3 +499,173 @@ class TestServiceHandlers:
             pytest.raises(HomeAssistantError, match="Too many events"),
         ):
             await handler(call)
+
+    async def test_handle_get_schedule(self) -> None:
+        """Test get_schedule handler returns formatted schedule."""
+        hass = MagicMock()
+        handler = self._register_and_get_handler(hass, "get_schedule")
+
+        mock_coordinator = MagicMock()
+        mock_coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                ),
+            ],
+            seq=1,
+        )
+
+        call = make_mock_call({})
+
+        with patch(
+            "custom_components.ooler.services._get_coordinator",
+            return_value=mock_coordinator,
+        ):
+            result = await handler(call)
+
+        assert result == {
+            "nights": [
+                {
+                    "days": [0],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temperature": 68,
+                }
+            ]
+        }
+
+
+class TestFormatScheduleResponse:
+    """Tests for _format_schedule_response helper."""
+
+    def test_no_schedule(self) -> None:
+        """Test returns empty nights when no schedule."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = None
+        assert _format_schedule_response(coordinator) == {"nights": []}
+
+    def test_empty_nights(self) -> None:
+        """Test returns empty nights when schedule has no nights."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(nights=[], seq=0)
+        assert _format_schedule_response(coordinator) == {"nights": []}
+
+    def test_single_temp(self) -> None:
+        """Test single-temperature night uses 'temperature' key."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                ),
+            ],
+            seq=1,
+        )
+        result = _format_schedule_response(coordinator)
+        assert result == {
+            "nights": [
+                {
+                    "days": [0],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temperature": 68,
+                }
+            ]
+        }
+
+    def test_multi_temp(self) -> None:
+        """Test multi-temperature night uses 'temps' key."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68), (time(2, 0), 62)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                ),
+            ],
+            seq=1,
+        )
+        result = _format_schedule_response(coordinator)
+        assert result == {
+            "nights": [
+                {
+                    "days": [0],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temps": [
+                        {"time": "22:00", "temperature": 68},
+                        {"time": "02:00", "temperature": 62},
+                    ],
+                }
+            ]
+        }
+
+    def test_with_warm_wake(self) -> None:
+        """Test warm wake is included in output."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=WarmWake(target_temp_f=116, duration_min=30),
+                ),
+            ],
+            seq=1,
+        )
+        result = _format_schedule_response(coordinator)
+        night = result["nights"][0]
+        assert night["warm_wake"] == {"temperature": 116, "duration": 30}
+
+    def test_groups_identical_nights(self) -> None:
+        """Test identical nights are grouped into one entry with multiple days."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=d,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                )
+                for d in range(5)
+            ],
+            seq=1,
+        )
+        result = _format_schedule_response(coordinator)
+        assert len(result["nights"]) == 1
+        assert result["nights"][0]["days"] == [0, 1, 2, 3, 4]
+
+    def test_different_nights_not_grouped(self) -> None:
+        """Test different nights are kept separate."""
+        coordinator = MagicMock()
+        coordinator.client.sleep_schedule = OolerSleepSchedule(
+            nights=[
+                SleepScheduleNight(
+                    day=0,
+                    temps=[(time(22, 0), 68)],
+                    off_time=time(6, 0),
+                    warm_wake=None,
+                ),
+                SleepScheduleNight(
+                    day=5,
+                    temps=[(time(23, 0), 70)],
+                    off_time=time(8, 0),
+                    warm_wake=None,
+                ),
+            ],
+            seq=1,
+        )
+        result = _format_schedule_response(coordinator)
+        assert len(result["nights"]) == 2
+        assert result["nights"][0]["days"] == [0]
+        assert result["nights"][1]["days"] == [5]

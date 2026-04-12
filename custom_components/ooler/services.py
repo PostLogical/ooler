@@ -6,7 +6,7 @@ from datetime import time
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -17,6 +17,7 @@ from .const import DOMAIN
 if TYPE_CHECKING:
     from . import OolerConfigEntry
 
+SERVICE_GET_SCHEDULE = "get_schedule"
 SERVICE_SAVE_SCHEDULE = "save_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
 SERVICE_LOAD_SCHEDULE = "load_schedule"
@@ -142,8 +143,56 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
     return result
 
 
+def _format_schedule_response(coordinator) -> dict[str, Any]:
+    """Format the device schedule as a set_schedule-compatible response."""
+    schedule = coordinator.client.sleep_schedule
+    if schedule is None or not schedule.nights:
+        return {"nights": []}
+
+    # Group identical nights (same temps, off_time, warm_wake) to produce compact output
+    groups: list[tuple[dict[str, Any], list[int]]] = []
+    for night in schedule.nights:
+        night_key: dict[str, Any] = {
+            "bedtime": night.temps[0][0].strftime("%H:%M") if night.temps else "00:00",
+            "off_time": night.off_time.strftime("%H:%M"),
+        }
+        if len(night.temps) == 1:
+            night_key["temperature"] = night.temps[0][1]
+        else:
+            night_key["temps"] = [
+                {"time": t.strftime("%H:%M"), "temperature": temp}
+                for t, temp in night.temps
+            ]
+        if night.warm_wake is not None:
+            night_key["warm_wake"] = {
+                "temperature": night.warm_wake.target_temp_f,
+                "duration": night.warm_wake.duration_min,
+            }
+
+        # Try to merge with an existing group
+        merged = False
+        for group_key, days in groups:
+            if group_key == night_key:
+                days.append(night.day)
+                merged = True
+                break
+        if not merged:
+            groups.append((night_key, [night.day]))
+
+    nights_out: list[dict[str, Any]] = []
+    for group_key, days in groups:
+        entry = {"days": sorted(days), **group_key}
+        nights_out.append(entry)
+
+    return {"nights": nights_out}
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """Register Ooler services."""
+
+    async def handle_get_schedule(call: ServiceCall) -> dict[str, Any]:
+        coordinator = _get_coordinator(hass, call)
+        return _format_schedule_response(coordinator)
 
     async def handle_save_schedule(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call)
@@ -171,6 +220,12 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN,
+        SERVICE_GET_SCHEDULE,
+        handle_get_schedule,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_SAVE_SCHEDULE,
         handle_save_schedule,
     )
@@ -193,6 +248,7 @@ def async_register_services(hass: HomeAssistant) -> None:
 
 def async_unregister_services(hass: HomeAssistant) -> None:
     """Unregister Ooler services."""
+    hass.services.async_remove(DOMAIN, SERVICE_GET_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_SAVE_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_DELETE_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_LOAD_SCHEDULE)

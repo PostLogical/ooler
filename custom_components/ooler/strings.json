@@ -59,6 +59,10 @@
       "name": "Clean",
       "description": "Activates the UV light to clean the Ooler water system."
     },
+    "get_schedule": {
+      "name": "Get schedule",
+      "description": "Return the current device schedule in set_schedule format."
+    },
     "save_schedule": {
       "name": "Save schedule",
       "description": "Save the current device schedule with a name for later use.",

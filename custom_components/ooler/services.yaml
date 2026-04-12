@@ -6,6 +6,17 @@ clean_service:
       integration: ooler
       domain: climate
 
+get_schedule:
+  name: Get schedule
+  description: >-
+    Return the current device schedule in the same format accepted by
+    set_schedule, so you can inspect it or use it as a template.
+  target:
+    entity:
+      integration: ooler
+    device:
+      integration: ooler
+
 save_schedule:
   name: Save schedule
   description: Save the current device schedule with a name for later use.
