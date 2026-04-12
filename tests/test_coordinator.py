@@ -498,6 +498,64 @@ async def test_coordinator_post_connect_empty_schedule_not_cached() -> None:
     assert coordinator._cached_sleep_schedule is None
 
 
+async def test_coordinator_post_connect_clears_stale_saved_name() -> None:
+    """Test post-connect clears active_saved_name when device schedule changed."""
+    coordinator, client = make_coordinator()
+    saved_schedule = make_mock_schedule()
+    coordinator._saved_schedules = {"weekday": saved_schedule}
+    coordinator._active_saved_name = "weekday"
+
+    # Device now has a different schedule (different night)
+    different_schedule = OolerSleepSchedule(
+        nights=[
+            SleepScheduleNight(
+                day=5,
+                temps=[(time(23, 0), 70)],
+                off_time=time(8, 0),
+                warm_wake=None,
+            )
+        ],
+        seq=10,
+    )
+    client.read_sleep_schedule = AsyncMock(return_value=different_schedule)
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._active_saved_name is None
+
+
+async def test_coordinator_post_connect_keeps_matching_saved_name() -> None:
+    """Test post-connect keeps active_saved_name when device schedule matches."""
+    coordinator, client = make_coordinator()
+    saved_schedule = make_mock_schedule()
+    coordinator._saved_schedules = {"weekday": saved_schedule}
+    coordinator._active_saved_name = "weekday"
+
+    # Device has same nights but different seq (seq changes on each write)
+    matching_schedule = OolerSleepSchedule(
+        nights=saved_schedule.nights,
+        seq=99,
+    )
+    client.read_sleep_schedule = AsyncMock(return_value=matching_schedule)
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._active_saved_name == "weekday"
+
+
+async def test_coordinator_post_connect_clears_deleted_saved_name() -> None:
+    """Test post-connect clears active_saved_name if the saved schedule was deleted."""
+    coordinator, client = make_coordinator()
+    coordinator._saved_schedules = {}  # schedule was deleted
+    coordinator._active_saved_name = "weekday"
+
+    client.read_sleep_schedule = AsyncMock(return_value=make_mock_schedule())
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._active_saved_name is None
+
+
 async def test_coordinator_post_connect_schedule_read_failure() -> None:
     """Test post-connect handles schedule read failure gracefully."""
     from bleak.exc import BleakError

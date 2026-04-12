@@ -255,6 +255,7 @@ class OolerCoordinator:
             schedule = await self.client.read_sleep_schedule()
             if schedule.nights:
                 self._cached_sleep_schedule = schedule
+            self._validate_active_saved_name(schedule)
         except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Failed to read sleep schedule from Ooler %s",
@@ -383,6 +384,14 @@ class OolerCoordinator:
     def active_saved_name(self) -> str | None:
         """Return the name of the currently active saved schedule, if any."""
         return self._active_saved_name
+
+    def _validate_active_saved_name(self, schedule: OolerSleepSchedule) -> None:
+        """Clear active_saved_name if the device schedule no longer matches."""
+        if self._active_saved_name is None:
+            return
+        saved = self._saved_schedules.get(self._active_saved_name)
+        if saved is None or saved.nights != schedule.nights:
+            self._active_saved_name = None
 
     @property
     def tonight_schedule(self) -> SleepScheduleNight | None:
