@@ -1,5 +1,37 @@
 # Release Notes
 
+## 2026.3.7b7
+
+Connection health monitoring via `ooler_ble_client` 0.11.0. Requires library 0.11.0. 241 tests, 100% coverage.
+
+---
+
+### Library-driven connection healing
+
+The library now owns a notify-staleness watchdog and forced-reconnect logic internally. The integration subscribes to the new **connection event channel** to observe what the library is doing, without duplicating any reconnect logic.
+
+- **NOTIFY_STALL** — logged at WARNING when the BLE notification stream has been silent for >15 minutes while the device is powered. Purely informational; entities stay available while the library heals.
+- **FORCED_RECONNECT** — logged at INFO when the library initiates a self-healing reconnect (triggered by notification stall, poll failure, or write failure). `is_connected` remains `True` throughout the window — no entity flap.
+- **CONNECTED / DISCONNECTED** — logged at DEBUG for observability. The existing disconnect-handling path continues to manage entity availability on actual connection loss.
+
+### Diagnostics
+
+The diagnostics platform now includes a `connection_events` section:
+
+- `last_notification_stall` — wall-clock timestamp and stall duration (seconds) of the most recent stall event.
+- `forced_reconnect_counts` — running counter broken down by trigger (`notify_stall`, `poll_failure`, `write_failure`).
+
+These are useful for overnight soak testing on ESPHome proxies — expect 0–2 stall/reconnect pairs per device per 24 hours on known-bad devices.
+
+### What didn't change
+
+- No new entities, switches, or sensors.
+- No changes to entity availability logic — the library's flap suppression handles forced-reconnect windows.
+- Coordinator timers (reconnect, poll, clock sync) are unchanged.
+- The state callback channel (`register_callback`) is unchanged.
+
+---
+
 ## 2026.3.7b6
 
 Full-featured release of the Ooler Sleep System integration for Home Assistant. Requires `ooler_ble_client` 0.10.0.
