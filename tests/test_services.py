@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from ooler_ble_client import SleepScheduleNight, WarmWake
+from ooler_ble_client import WarmWake
 
 from custom_components.ooler.const import DOMAIN
 from custom_components.ooler.services import (
@@ -19,8 +19,6 @@ from custom_components.ooler.services import (
     async_register_services,
     async_unregister_services,
 )
-
-from .conftest import OOLER_ADDRESS
 
 
 def make_mock_call(
@@ -178,12 +176,10 @@ class TestGetCoordinator:
         """Test falls through when device not in registry."""
         hass = MagicMock()
         call = make_mock_call({})
-        with (
-            patch("custom_components.ooler.services.dr.async_get") as mock_dr,
-            pytest.raises(HomeAssistantError, match="No Ooler device found"),
-        ):
+        with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = None
-            _get_coordinator(hass, call)
+            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+                _get_coordinator(hass, call)
 
     def test_no_ooler_entry_for_device(self) -> None:
         """Test falls through when device has no Ooler config entry."""
@@ -197,13 +193,11 @@ class TestGetCoordinator:
         other_entry.domain = "other"
         other_entry.state = ConfigEntryState.LOADED
 
-        with (
-            patch("custom_components.ooler.services.dr.async_get") as mock_dr,
-            pytest.raises(HomeAssistantError, match="No Ooler device found"),
-        ):
+        with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = device_entry
             hass.config_entries.async_get_entry.return_value = other_entry
-            _get_coordinator(hass, call)
+            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+                _get_coordinator(hass, call)
 
     def test_found_via_device_id(self) -> None:
         """Test successfully resolving coordinator via device_id."""
@@ -306,12 +300,10 @@ class TestGetCoordinator:
         call = MagicMock(spec=ServiceCall)
         call.data = {"entity_id": "climate.nonexistent"}
 
-        with (
-            patch("custom_components.ooler.services.er.async_get") as mock_er,
-            pytest.raises(HomeAssistantError, match="No Ooler device found"),
-        ):
+        with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = None
-            _get_coordinator(hass, call)
+            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+                _get_coordinator(hass, call)
 
     def test_entity_no_config_entry(self) -> None:
         """Test error when entity has no config entry."""
@@ -322,12 +314,10 @@ class TestGetCoordinator:
         ent_entry = MagicMock()
         ent_entry.config_entry_id = None
 
-        with (
-            patch("custom_components.ooler.services.er.async_get") as mock_er,
-            pytest.raises(HomeAssistantError, match="No Ooler device found"),
-        ):
+        with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = ent_entry
-            _get_coordinator(hass, call)
+            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+                _get_coordinator(hass, call)
 
 
 class TestServiceRegistration:
@@ -373,7 +363,8 @@ class TestServiceHandlers:
         for call in hass.services.async_register.call_args_list:
             if call.args[1] == service_name:
                 return call.args[2]
-        raise ValueError(f"Service {service_name} not found")
+        msg = f"Service {service_name} not found"
+        raise ValueError(msg)
 
     async def test_handle_save_schedule(self) -> None:
         """Test save_schedule handler calls coordinator."""

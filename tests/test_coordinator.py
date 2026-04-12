@@ -7,10 +7,11 @@ from datetime import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from bleak.exc import BleakError
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import METRIC_SYSTEM
-from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight, WarmWake
+from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight
 
 from custom_components.ooler.coordinator import (
     CLOCK_SYNC_INTERVAL,
@@ -22,6 +23,7 @@ from custom_components.ooler.coordinator import (
 from .conftest import (
     OOLER_ADDRESS,
     OOLER_NAME,
+    make_empty_schedule,
     make_mock_client,
     make_mock_schedule,
 )
@@ -488,8 +490,6 @@ async def test_coordinator_post_connect_reads_schedule() -> None:
 
 async def test_coordinator_post_connect_empty_schedule_not_cached() -> None:
     """Test post-connect does not cache an empty schedule."""
-    from .conftest import make_empty_schedule
-
     coordinator, client = make_coordinator()
     client.read_sleep_schedule = AsyncMock(return_value=make_empty_schedule())
 
@@ -558,8 +558,6 @@ async def test_coordinator_post_connect_clears_deleted_saved_name() -> None:
 
 async def test_coordinator_post_connect_schedule_read_failure() -> None:
     """Test post-connect handles schedule read failure gracefully."""
-    from bleak.exc import BleakError
-
     coordinator, client = make_coordinator()
     client.read_sleep_schedule = AsyncMock(side_effect=BleakError("read failed"))
 
@@ -645,8 +643,6 @@ async def test_coordinator_sleep_schedule_not_active() -> None:
 
 async def test_coordinator_sleep_schedule_empty_not_active() -> None:
     """Test sleep_schedule_active is False with empty nights."""
-    from .conftest import make_empty_schedule
-
     coordinator, client = make_coordinator()
     client.sleep_schedule = make_empty_schedule()
 
@@ -904,8 +900,6 @@ async def test_coordinator_tonight_schedule_no_schedule() -> None:
 
 async def test_coordinator_tonight_schedule_empty() -> None:
     """Test tonight_schedule returns None with empty schedule."""
-    from .conftest import make_empty_schedule
-
     coordinator, client = make_coordinator()
     client.sleep_schedule = make_empty_schedule()
 
@@ -977,8 +971,6 @@ async def test_coordinator_save_schedule_no_active() -> None:
 
 async def test_coordinator_save_schedule_empty_active() -> None:
     """Test saving raises when schedule has no nights."""
-    from .conftest import make_empty_schedule
-
     coordinator, client = make_coordinator()
     client.sleep_schedule = make_empty_schedule()
 

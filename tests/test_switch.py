@@ -15,7 +15,7 @@ from custom_components.ooler.switch import (
     async_setup_entry,
 )
 
-from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client
+from .conftest import OOLER_ADDRESS, OOLER_NAME, make_mock_client, make_mock_schedule
 
 
 def make_coordinator_with_client(client: MagicMock) -> OolerCoordinator:
@@ -147,8 +147,6 @@ class TestOolerSleepScheduleSwitch:
 
     def test_available_with_cache(self) -> None:
         """Test switch available when cached schedule exists."""
-        from .conftest import make_mock_schedule
-
         entity = self._make_entity(connected=True)
         entity.coordinator.cached_sleep_schedule = make_mock_schedule()
         assert entity.available is True
@@ -160,8 +158,6 @@ class TestOolerSleepScheduleSwitch:
 
     def test_available_when_disconnected(self) -> None:
         """Test switch unavailable when disconnected."""
-        from .conftest import make_mock_schedule
-
         entity = self._make_entity(connected=False)
         entity.coordinator.cached_sleep_schedule = make_mock_schedule()
         assert entity.available is False

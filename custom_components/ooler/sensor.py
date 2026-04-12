@@ -72,7 +72,7 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
         bedtime = night.temps[0][0].strftime("%I:%M %p").lstrip("0")
         off = night.off_time.strftime("%I:%M %p").lstrip("0")
         temp = night.temps[0][1]
-        return f"{bedtime}–{off}, {temp}°F"
+        return f"{bedtime}-{off}, {temp}\u00b0F"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

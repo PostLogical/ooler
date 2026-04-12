@@ -3,29 +3,35 @@
 from __future__ import annotations
 
 from datetime import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from ooler_ble_client import SleepScheduleNight, WarmWake
 
 from .const import DOMAIN
+
+if TYPE_CHECKING:
+    from . import OolerConfigEntry
 
 SERVICE_SAVE_SCHEDULE = "save_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
 SERVICE_LOAD_SCHEDULE = "load_schedule"
 SERVICE_SET_SCHEDULE = "set_schedule"
 
+_TIME_PARTS = 2
+_MAX_DAY = 6
+
 
 def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
-    """Resolve the coordinator from a service call target.
+    """
+    Resolve the coordinator from a service call target.
 
     Supports both device_id and entity_id targeting.
     """
-    from . import OolerConfigEntry
-
     # Try device_id first
     device_ids = call.data.get("device_id")
     if device_ids:
@@ -68,7 +74,7 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
 def _parse_time(value: str) -> time:
     """Parse a HH:MM string into a time object."""
     parts = value.split(":")
-    if len(parts) != 2:
+    if len(parts) != _TIME_PARTS:
         msg = f"Invalid time format '{value}', expected HH:MM"
         raise HomeAssistantError(msg)
     try:
@@ -123,7 +129,7 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
 
         # Replicate across all specified days
         for day in days:
-            if not 0 <= day <= 6:
+            if not 0 <= day <= _MAX_DAY:
                 msg = f"Invalid day {day}, must be 0-6 (Monday-Sunday)"
                 raise HomeAssistantError(msg)
             result.append(

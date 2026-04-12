@@ -74,7 +74,8 @@ class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        """Return whether the switch is available.
+        """
+        Return whether the switch is available.
 
         Unavailable when disconnected or when there is no schedule to toggle
         (no active schedule and no cached schedule to re-enable).

@@ -31,7 +31,7 @@ from ooler_ble_client import (
     WarmWake,
 )
 
-from .const import DOMAIN, _LOGGER, CONF_MODEL
+from .const import _LOGGER, CONF_MODEL, DOMAIN
 
 if TYPE_CHECKING:
     from collections.abc import Callable

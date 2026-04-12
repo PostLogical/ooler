@@ -46,7 +46,7 @@ class OolerSavedScheduleSelect(OolerEntity, SelectEntity):
     def options(self) -> list[str]:
         """Return the list of saved schedule names."""
         names = list(self.coordinator.saved_schedules.keys())
-        return names if names else ["(none)"]
+        return names or ["(none)"]
 
     @property
     def current_option(self) -> str | None:
