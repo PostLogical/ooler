@@ -99,6 +99,7 @@ def make_mock_client(connected: bool = True) -> MagicMock:
     client.set_temperature_unit = AsyncMock()
     client.set_ble_device = MagicMock()
     client.register_callback = MagicMock(return_value=lambda: None)
+    client.register_connection_event_callback = MagicMock(return_value=lambda: None)
     client.read_sleep_schedule = AsyncMock(return_value=make_empty_schedule())
     client.set_sleep_schedule = AsyncMock()
     client.clear_sleep_schedule = AsyncMock()

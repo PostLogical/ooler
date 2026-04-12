@@ -261,8 +261,8 @@ async def test_coordinator_async_start(hass: HomeAssistant) -> None:
     ):
         cleanups = await coordinator.async_start()
 
-    # BLE callback, state callback, reconnect timer, poll timer, clock sync timer, HA stop
-    assert len(cleanups) == 6
+    # BLE callback, state callback, connection event callback, reconnect timer, poll timer, clock sync timer, HA stop
+    assert len(cleanups) == 7
 
 
 async def test_coordinator_async_start_no_ble_device(
@@ -295,7 +295,7 @@ async def test_coordinator_async_start_no_ble_device(
         cleanups = await coordinator.async_start()
 
     client.set_ble_device.assert_not_called()
-    assert len(cleanups) == 6
+    assert len(cleanups) == 7
 
 
 async def test_coordinator_update_ble_connected() -> None:
@@ -763,8 +763,8 @@ async def test_coordinator_async_start_has_clock_sync_timer(
     ):
         cleanups = await coordinator.async_start()
 
-    # BLE callback, state callback, reconnect timer, poll timer, clock sync timer, HA stop
-    assert len(cleanups) == 6
+    # BLE callback, state callback, connection event callback, reconnect timer, poll timer, clock sync timer, HA stop
+    assert len(cleanups) == 7
     # Verify clock sync timer was registered with correct interval
     intervals = [call.args[2] for call in mock_track.call_args_list]
     assert CLOCK_SYNC_INTERVAL in intervals
@@ -1158,3 +1158,95 @@ async def test_coordinator_async_start_loads_store(
         await coordinator.async_start()
 
     mock_load.assert_called_once()
+
+
+async def test_connection_event_connected(hass: HomeAssistant) -> None:
+    """Test CONNECTED event is logged at debug."""
+    from ooler_ble_client import ConnectionEvent, ConnectionEventType
+
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.CONNECTED, timestamp=0.0, detail=None
+    )
+    coordinator._async_on_connection_event(event)
+    # No state change expected — just logging
+
+
+async def test_connection_event_disconnected(hass: HomeAssistant) -> None:
+    """Test DISCONNECTED event is logged at debug."""
+    from ooler_ble_client import ConnectionEvent, ConnectionEventType
+
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.DISCONNECTED, timestamp=0.0, detail=None
+    )
+    coordinator._async_on_connection_event(event)
+    # No state change expected — just logging
+
+
+async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
+    """Test NOTIFY_STALL event records stall info for diagnostics."""
+    from ooler_ble_client import ConnectionEvent, ConnectionEventType
+
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    assert coordinator._last_notification_stall is None
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.NOTIFY_STALL,
+        timestamp=0.0,
+        detail={"stall_duration_seconds": 920.5},
+    )
+    coordinator._async_on_connection_event(event)
+
+    assert coordinator._last_notification_stall is not None
+    assert coordinator._last_notification_stall["stall_duration_seconds"] == 920.5
+    assert "timestamp" in coordinator._last_notification_stall
+
+
+async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
+    """Test FORCED_RECONNECT event increments counter by trigger."""
+    from ooler_ble_client import ConnectionEvent, ConnectionEventType
+
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    assert coordinator._forced_reconnect_counts == {}
+
+    for trigger in ("notify_stall", "notify_stall", "poll_failure"):
+        event = ConnectionEvent(
+            type=ConnectionEventType.FORCED_RECONNECT,
+            timestamp=0.0,
+            detail={"trigger": trigger},
+        )
+        coordinator._async_on_connection_event(event)
+
+    assert coordinator._forced_reconnect_counts == {
+        "notify_stall": 2,
+        "poll_failure": 1,
+    }

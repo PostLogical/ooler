@@ -24,6 +24,8 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import (
+    ConnectionEvent,
+    ConnectionEventType,
     OolerBLEDevice,
     OolerSleepSchedule,
     SleepScheduleNight,
@@ -118,6 +120,9 @@ class OolerCoordinator:
             int(address.replace(":", ""), 16) % 1500 + 500
         ) / 1000
 
+        self._last_notification_stall: dict[str, Any] | None = None
+        self._forced_reconnect_counts: dict[str, int] = {}
+
         self._store: Store[dict[str, Any]] = Store(
             hass,
             STORAGE_VERSION,
@@ -185,6 +190,13 @@ class OolerCoordinator:
         # Periodic poll timer
         cleanups.append(
             async_track_time_interval(self.hass, self._async_poll_check, POLL_INTERVAL)
+        )
+
+        # Register for library connection event callbacks
+        cleanups.append(
+            self.client.register_connection_event_callback(
+                self._async_on_connection_event
+            )
         )
 
         # Periodic clock sync timer
@@ -290,6 +302,35 @@ class OolerCoordinator:
             _LOGGER.debug("Ooler %s disconnected, scheduling reconnect", self.address)
             self._schedule_connect(stagger=True)
         self._async_notify_listeners()
+
+    @callback
+    def _async_on_connection_event(self, event: ConnectionEvent) -> None:
+        """Handle library connection event callback."""
+        if event.type is ConnectionEventType.CONNECTED:
+            _LOGGER.debug("Ooler %s: connection event CONNECTED", self.address)
+        elif event.type is ConnectionEventType.DISCONNECTED:
+            _LOGGER.debug("Ooler %s: connection event DISCONNECTED", self.address)
+        elif event.type is ConnectionEventType.NOTIFY_STALL:
+            stall_seconds = event.detail["stall_duration_seconds"]
+            _LOGGER.warning(
+                "Ooler %s: notification stall detected (%.0fs)",
+                self.address,
+                stall_seconds,
+            )
+            self._last_notification_stall = {
+                "timestamp": datetime.now().isoformat(),
+                "stall_duration_seconds": stall_seconds,
+            }
+        elif event.type is ConnectionEventType.FORCED_RECONNECT:
+            trigger = event.detail["trigger"]
+            _LOGGER.info(
+                "Ooler %s: forced reconnect triggered by %s",
+                self.address,
+                trigger,
+            )
+            self._forced_reconnect_counts[trigger] = (
+                self._forced_reconnect_counts.get(trigger, 0) + 1
+            )
 
     @callback
     def _async_reconnect_check(self, _now: object = None) -> None:

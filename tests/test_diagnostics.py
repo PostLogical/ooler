@@ -21,6 +21,8 @@ async def test_diagnostics(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
+    coordinator._last_notification_stall = None
+    coordinator._forced_reconnect_counts = {}
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -40,6 +42,8 @@ async def test_diagnostics(hass) -> None:
     assert result["device_state"]["water_level"] == 80
     assert result["device_state"]["clean"] is False
     assert result["sleep_schedule"]["active"] is False
+    assert result["connection_events"]["last_notification_stall"] is None
+    assert result["connection_events"]["forced_reconnect_counts"] == {}
 
 
 async def test_diagnostics_with_schedule(hass) -> None:
@@ -49,6 +53,8 @@ async def test_diagnostics_with_schedule(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
+    coordinator._last_notification_stall = None
+    coordinator._forced_reconnect_counts = {}
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -61,3 +67,31 @@ async def test_diagnostics_with_schedule(hass) -> None:
     assert result["sleep_schedule"]["seq"] == 5
     assert result["sleep_schedule"]["night_count"] == 2
     assert result["sleep_schedule"]["days"] == [0, 1]
+
+
+async def test_diagnostics_with_connection_events(hass) -> None:
+    """Test diagnostics includes connection event data when present."""
+    client = make_mock_client()
+    coordinator = MagicMock(spec=OolerCoordinator)
+    coordinator.client = client
+    coordinator.connection_enabled = True
+    coordinator._last_notification_stall = {
+        "timestamp": "2026-04-12T03:15:00",
+        "stall_duration_seconds": 920.5,
+    }
+    coordinator._forced_reconnect_counts = {"notify_stall": 2, "poll_failure": 1}
+
+    entry = MagicMock()
+    entry.unique_id = OOLER_ADDRESS
+    entry.data = {"model": OOLER_NAME}
+    entry.runtime_data = coordinator
+
+    result = await async_get_config_entry_diagnostics(hass, entry)
+
+    stall = result["connection_events"]["last_notification_stall"]
+    assert stall["stall_duration_seconds"] == 920.5
+    assert stall["timestamp"] == "2026-04-12T03:15:00"
+    assert result["connection_events"]["forced_reconnect_counts"] == {
+        "notify_stall": 2,
+        "poll_failure": 1,
+    }

@@ -46,4 +46,8 @@ async def async_get_config_entry_diagnostics(
             "clean": state.clean,
         },
         "sleep_schedule": schedule_data,
+        "connection_events": {
+            "last_notification_stall": coordinator._last_notification_stall,
+            "forced_reconnect_counts": dict(coordinator._forced_reconnect_counts),
+        },
     }
