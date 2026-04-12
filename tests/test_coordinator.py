@@ -158,6 +158,26 @@ async def test_coordinator_ensure_connected_inflight_task_fails() -> None:
 
     # Should have called connect() since in-flight task didn't connect
     client.connect.assert_called_once()
+    # Post-connect reads schedule and syncs clock
+    client.read_sleep_schedule.assert_called_once()
+    client.sync_clock.assert_called_once()
+
+
+async def test_coordinator_ensure_connected_runs_post_connect() -> None:
+    """Test async_ensure_connected reads schedule after establishing new connection."""
+    coordinator, client = make_coordinator(connected=False)
+    schedule = make_mock_schedule()
+    client.read_sleep_schedule = AsyncMock(return_value=schedule)
+    listener = MagicMock()
+    coordinator.async_add_listener(listener)
+
+    await coordinator.async_ensure_connected()
+
+    # Should read schedule and sync clock on new connection
+    client.read_sleep_schedule.assert_called_once()
+    assert coordinator._cached_sleep_schedule is schedule
+    client.sync_clock.assert_called_once()
+    listener.assert_called_once()
 
 
 async def test_coordinator_connection_disabled_skips_reconnect() -> None:

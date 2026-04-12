@@ -223,6 +223,7 @@ class OolerCoordinator:
             )
             msg = f"Failed to connect to Ooler {self.address}"
             raise HomeAssistantError(msg) from err
+        await self._async_post_connect()
 
     async def _async_connect(self, *, stagger: bool = False) -> None:
         """Connect to the device, syncing settings on first connect."""
