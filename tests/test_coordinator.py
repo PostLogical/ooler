@@ -476,16 +476,19 @@ async def test_coordinator_update_ble_disconnected_disabled() -> None:
 
 
 async def test_coordinator_post_connect_reads_schedule() -> None:
-    """Test post-connect reads sleep schedule and caches it."""
+    """Test post-connect reads sleep schedule, caches it, and notifies listeners."""
     coordinator, client = make_coordinator(connected=False)
     schedule = make_mock_schedule()
     client.read_sleep_schedule = AsyncMock(return_value=schedule)
+    listener = MagicMock()
+    coordinator.async_add_listener(listener)
 
     await coordinator._async_post_connect()
 
     client.read_sleep_schedule.assert_called_once()
     assert coordinator._cached_sleep_schedule is schedule
     client.sync_clock.assert_called_once()
+    listener.assert_called_once()
 
 
 async def test_coordinator_post_connect_empty_schedule_not_cached() -> None:
@@ -560,12 +563,16 @@ async def test_coordinator_post_connect_schedule_read_failure() -> None:
     """Test post-connect handles schedule read failure gracefully."""
     coordinator, client = make_coordinator()
     client.read_sleep_schedule = AsyncMock(side_effect=BleakError("read failed"))
+    listener = MagicMock()
+    coordinator.async_add_listener(listener)
 
     await coordinator._async_post_connect()
 
     assert coordinator._cached_sleep_schedule is None
     # Clock sync still attempted after schedule read failure
     client.sync_clock.assert_called_once()
+    # Listeners still notified so entities refresh (e.g. connection state)
+    listener.assert_called_once()
 
 
 async def test_coordinator_sync_clock() -> None:

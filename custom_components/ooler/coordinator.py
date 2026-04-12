@@ -261,6 +261,7 @@ class OolerCoordinator:
                 exc_info=True,
             )
         await self._async_sync_clock()
+        self._async_notify_listeners()
 
     def _schedule_connect(self, *, stagger: bool = False) -> None:
         """Schedule a connection attempt if one isn't already running."""
