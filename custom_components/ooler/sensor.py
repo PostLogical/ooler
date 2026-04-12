@@ -16,8 +16,13 @@ from .entity import OolerEntity
 PARALLEL_UPDATES = 0
 
 _DAY_NAMES = [
-    "monday", "tuesday", "wednesday", "thursday",
-    "friday", "saturday", "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
 ]
 
 
@@ -28,10 +33,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Ooler sensors."""
     coordinator = config_entry.runtime_data
-    async_add_entities([
-        OolerWaterLevelSensor(coordinator),
-        OolerScheduleTonightSensor(coordinator),
-    ])
+    async_add_entities(
+        [
+            OolerWaterLevelSensor(coordinator),
+            OolerScheduleTonightSensor(coordinator),
+        ]
+    )
 
 
 class OolerWaterLevelSensor(OolerEntity, SensorEntity):
@@ -85,8 +92,7 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
             "bedtime": night.temps[0][0].strftime("%H:%M") if night.temps else None,
             "off_time": night.off_time.strftime("%H:%M"),
             "temps": [
-                {"time": t.strftime("%H:%M"), "temp_f": temp}
-                for t, temp in night.temps
+                {"time": t.strftime("%H:%M"), "temp_f": temp} for t, temp in night.temps
             ],
         }
         if night.warm_wake is not None:

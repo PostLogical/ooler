@@ -150,8 +150,13 @@ class Ooler(OolerEntity, ClimateEntity):
         if schedule is None or not schedule.nights:
             return None
         day_names = [
-            "monday", "tuesday", "wednesday", "thursday",
-            "friday", "saturday", "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
         ]
         nights = []
         for night in schedule.nights:

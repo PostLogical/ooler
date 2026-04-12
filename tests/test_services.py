@@ -21,9 +21,7 @@ from custom_components.ooler.services import (
 )
 
 
-def make_mock_call(
-    data: dict, device_id: str = "device_123"
-) -> ServiceCall:
+def make_mock_call(data: dict, device_id: str = "device_123") -> ServiceCall:
     """Create a mock service call."""
     call = MagicMock(spec=ServiceCall)
     call.data = {**data, "device_id": device_id}
@@ -56,14 +54,16 @@ class TestParseNights:
 
     def test_simple_single_temp(self) -> None:
         """Test parsing a simple single-temperature night."""
-        nights = _parse_nights([
-            {
-                "days": [0, 1, 2],
-                "bedtime": "22:00",
-                "off_time": "06:00",
-                "temperature": 68,
-            }
-        ])
+        nights = _parse_nights(
+            [
+                {
+                    "days": [0, 1, 2],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temperature": 68,
+                }
+            ]
+        )
         assert len(nights) == 3
         for i, night in enumerate(nights):
             assert night.day == i
@@ -73,18 +73,20 @@ class TestParseNights:
 
     def test_multi_temp_zones(self) -> None:
         """Test parsing with multiple temperature zones."""
-        nights = _parse_nights([
-            {
-                "days": [0],
-                "bedtime": "22:00",
-                "off_time": "06:00",
-                "temps": [
-                    {"time": "22:00", "temperature": 68},
-                    {"time": "02:00", "temperature": 62},
-                    {"time": "04:00", "temperature": 70},
-                ],
-            }
-        ])
+        nights = _parse_nights(
+            [
+                {
+                    "days": [0],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temps": [
+                        {"time": "22:00", "temperature": 68},
+                        {"time": "02:00", "temperature": 62},
+                        {"time": "04:00", "temperature": 70},
+                    ],
+                }
+            ]
+        )
         assert len(nights) == 1
         assert len(nights[0].temps) == 3
         assert nights[0].temps[0] == (time(22, 0), 68)
@@ -93,33 +95,37 @@ class TestParseNights:
 
     def test_with_warm_wake(self) -> None:
         """Test parsing with warm wake."""
-        nights = _parse_nights([
-            {
-                "days": [0],
-                "bedtime": "22:00",
-                "off_time": "06:00",
-                "temperature": 68,
-                "warm_wake": {"temperature": 116, "duration": 30},
-            }
-        ])
+        nights = _parse_nights(
+            [
+                {
+                    "days": [0],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temperature": 68,
+                    "warm_wake": {"temperature": 116, "duration": 30},
+                }
+            ]
+        )
         assert nights[0].warm_wake == WarmWake(target_temp_f=116, duration_min=30)
 
     def test_multiple_entries(self) -> None:
         """Test parsing weekday/weekend split."""
-        nights = _parse_nights([
-            {
-                "days": [0, 1, 2, 3, 4],
-                "bedtime": "22:00",
-                "off_time": "06:00",
-                "temperature": 68,
-            },
-            {
-                "days": [5, 6],
-                "bedtime": "23:00",
-                "off_time": "08:00",
-                "temperature": 70,
-            },
-        ])
+        nights = _parse_nights(
+            [
+                {
+                    "days": [0, 1, 2, 3, 4],
+                    "bedtime": "22:00",
+                    "off_time": "06:00",
+                    "temperature": 68,
+                },
+                {
+                    "days": [5, 6],
+                    "bedtime": "23:00",
+                    "off_time": "08:00",
+                    "temperature": 70,
+                },
+            ]
+        )
         assert len(nights) == 7
         assert nights[4].day == 4
         assert nights[4].temps == [(time(22, 0), 68)]
@@ -129,7 +135,9 @@ class TestParseNights:
     def test_missing_days(self) -> None:
         """Test error when days is missing."""
         with pytest.raises(HomeAssistantError, match="'days' list"):
-            _parse_nights([{"bedtime": "22:00", "off_time": "06:00", "temperature": 68}])
+            _parse_nights(
+                [{"bedtime": "22:00", "off_time": "06:00", "temperature": 68}]
+            )
 
     def test_missing_bedtime(self) -> None:
         """Test error when bedtime is missing."""
@@ -149,16 +157,30 @@ class TestParseNights:
     def test_invalid_day(self) -> None:
         """Test error for invalid day number."""
         with pytest.raises(HomeAssistantError, match="Invalid day 7"):
-            _parse_nights([
-                {"days": [7], "bedtime": "22:00", "off_time": "06:00", "temperature": 68}
-            ])
+            _parse_nights(
+                [
+                    {
+                        "days": [7],
+                        "bedtime": "22:00",
+                        "off_time": "06:00",
+                        "temperature": 68,
+                    }
+                ]
+            )
 
     def test_empty_days_list(self) -> None:
         """Test error for empty days list."""
         with pytest.raises(HomeAssistantError, match="'days' list"):
-            _parse_nights([
-                {"days": [], "bedtime": "22:00", "off_time": "06:00", "temperature": 68}
-            ])
+            _parse_nights(
+                [
+                    {
+                        "days": [],
+                        "bedtime": "22:00",
+                        "off_time": "06:00",
+                        "temperature": 68,
+                    }
+                ]
+            )
 
 
 class TestGetCoordinator:
@@ -213,9 +235,7 @@ class TestGetCoordinator:
         config_entry.state = ConfigEntryState.LOADED
         config_entry.runtime_data = mock_coordinator
 
-        with patch(
-            "custom_components.ooler.services.dr.async_get"
-        ) as mock_dr:
+        with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = device_entry
             hass.config_entries.async_get_entry.return_value = config_entry
             result = _get_coordinator(hass, call)
@@ -237,9 +257,7 @@ class TestGetCoordinator:
         config_entry.state = ConfigEntryState.LOADED
         config_entry.runtime_data = mock_coordinator
 
-        with patch(
-            "custom_components.ooler.services.dr.async_get"
-        ) as mock_dr:
+        with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = device_entry
             hass.config_entries.async_get_entry.return_value = config_entry
             result = _get_coordinator(hass, call)
@@ -261,9 +279,7 @@ class TestGetCoordinator:
         ent_entry = MagicMock()
         ent_entry.config_entry_id = "entry_123"
 
-        with patch(
-            "custom_components.ooler.services.er.async_get"
-        ) as mock_er:
+        with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = ent_entry
             hass.config_entries.async_get_entry.return_value = config_entry
             result = _get_coordinator(hass, call)
@@ -285,9 +301,7 @@ class TestGetCoordinator:
         ent_entry = MagicMock()
         ent_entry.config_entry_id = "entry_123"
 
-        with patch(
-            "custom_components.ooler.services.er.async_get"
-        ) as mock_er:
+        with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = ent_entry
             hass.config_entries.async_get_entry.return_value = config_entry
             result = _get_coordinator(hass, call)
@@ -343,9 +357,7 @@ class TestServiceRegistration:
         hass = MagicMock()
         async_unregister_services(hass)
 
-        removed = {
-            call.args[1] for call in hass.services.async_remove.call_args_list
-        }
+        removed = {call.args[1] for call in hass.services.async_remove.call_args_list}
         assert removed == {
             "save_schedule",
             "delete_schedule",
@@ -428,16 +440,18 @@ class TestServiceHandlers:
         mock_coordinator = MagicMock()
         mock_coordinator.async_write_sleep_schedule = AsyncMock()
 
-        call = make_mock_call({
-            "nights": [
-                {
-                    "days": [0, 1],
-                    "bedtime": "22:00",
-                    "off_time": "06:00",
-                    "temperature": 68,
-                }
-            ]
-        })
+        call = make_mock_call(
+            {
+                "nights": [
+                    {
+                        "days": [0, 1],
+                        "bedtime": "22:00",
+                        "off_time": "06:00",
+                        "temperature": 68,
+                    }
+                ]
+            }
+        )
 
         with patch(
             "custom_components.ooler.services._get_coordinator",
@@ -461,16 +475,18 @@ class TestServiceHandlers:
             side_effect=ValueError("Too many events: 71 (max 70)")
         )
 
-        call = make_mock_call({
-            "nights": [
-                {
-                    "days": [0],
-                    "bedtime": "22:00",
-                    "off_time": "06:00",
-                    "temperature": 68,
-                }
-            ]
-        })
+        call = make_mock_call(
+            {
+                "nights": [
+                    {
+                        "days": [0],
+                        "bedtime": "22:00",
+                        "off_time": "06:00",
+                        "temperature": 68,
+                    }
+                ]
+            }
+        )
 
         with (
             patch(

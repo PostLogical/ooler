@@ -133,9 +133,7 @@ class TestOolerScheduleTonightSensor:
 
     def test_native_value_empty_temps(self) -> None:
         """Test value is None when temps list is empty."""
-        night = SleepScheduleNight(
-            day=0, temps=[], off_time=time(6, 0), warm_wake=None
-        )
+        night = SleepScheduleNight(day=0, temps=[], off_time=time(6, 0), warm_wake=None)
         entity = self._make_entity(tonight=night)
         assert entity.native_value is None
 

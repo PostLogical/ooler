@@ -82,9 +82,7 @@ def _deserialize_schedule(data: dict[str, Any]) -> OolerSleepSchedule:
             SleepScheduleNight(
                 day=night_data["day"],
                 temps=temps,
-                off_time=time(
-                    *map(int, night_data["off_time"].split(":"))
-                ),
+                off_time=time(*map(int, night_data["off_time"].split(":"))),
                 warm_wake=warm_wake,
             )
         )

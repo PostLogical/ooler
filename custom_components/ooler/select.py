@@ -37,10 +37,7 @@ class OolerSavedScheduleSelect(OolerEntity, SelectEntity):
     @property
     def available(self) -> bool:
         """Available when connected and schedules exist."""
-        return (
-            self.coordinator.is_connected
-            and bool(self.coordinator.saved_schedules)
-        )
+        return self.coordinator.is_connected and bool(self.coordinator.saved_schedules)
 
     @property
     def options(self) -> list[str]:

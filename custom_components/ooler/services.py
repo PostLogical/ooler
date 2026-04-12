@@ -40,8 +40,8 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
         device_entry = device_registry.async_get(device_id)
         if device_entry is not None:
             for entry_id in device_entry.config_entries:
-                entry: OolerConfigEntry | None = (
-                    hass.config_entries.async_get_entry(entry_id)
+                entry: OolerConfigEntry | None = hass.config_entries.async_get_entry(
+                    entry_id
                 )
                 if (
                     entry is not None
@@ -53,9 +53,7 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
     # Fall back to entity_id
     entity_ids = call.data.get("entity_id")
     if entity_ids:
-        entity_id = (
-            entity_ids[0] if isinstance(entity_ids, list) else entity_ids
-        )
+        entity_id = entity_ids[0] if isinstance(entity_ids, list) else entity_ids
         ent_registry = er.async_get(hass)
         ent_entry = ent_registry.async_get(entity_id)
         if ent_entry is not None and ent_entry.config_entry_id is not None:
@@ -172,16 +170,24 @@ def async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(str(err)) from err
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SAVE_SCHEDULE, handle_save_schedule,
+        DOMAIN,
+        SERVICE_SAVE_SCHEDULE,
+        handle_save_schedule,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_DELETE_SCHEDULE, handle_delete_schedule,
+        DOMAIN,
+        SERVICE_DELETE_SCHEDULE,
+        handle_delete_schedule,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_LOAD_SCHEDULE, handle_load_schedule,
+        DOMAIN,
+        SERVICE_LOAD_SCHEDULE,
+        handle_load_schedule,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_SET_SCHEDULE, handle_set_schedule,
+        DOMAIN,
+        SERVICE_SET_SCHEDULE,
+        handle_set_schedule,
     )
 
 
