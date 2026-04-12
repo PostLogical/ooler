@@ -21,8 +21,8 @@ async def test_diagnostics(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator._last_notification_stall = None
-    coordinator._forced_reconnect_counts = {}
+    coordinator.last_notification_stall = None
+    coordinator.forced_reconnect_counts = {}
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -53,8 +53,8 @@ async def test_diagnostics_with_schedule(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator._last_notification_stall = None
-    coordinator._forced_reconnect_counts = {}
+    coordinator.last_notification_stall = None
+    coordinator.forced_reconnect_counts = {}
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -75,11 +75,11 @@ async def test_diagnostics_with_connection_events(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator._last_notification_stall = {
+    coordinator.last_notification_stall = {
         "timestamp": "2026-04-12T03:15:00",
         "stall_duration_seconds": 920.5,
     }
-    coordinator._forced_reconnect_counts = {"notify_stall": 2, "poll_failure": 1}
+    coordinator.forced_reconnect_counts = {"notify_stall": 2, "poll_failure": 1}
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS

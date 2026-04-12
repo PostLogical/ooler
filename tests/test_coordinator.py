@@ -11,7 +11,12 @@ from bleak.exc import BleakError
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.unit_system import METRIC_SYSTEM
-from ooler_ble_client import OolerSleepSchedule, SleepScheduleNight
+from ooler_ble_client import (
+    ConnectionEvent,
+    ConnectionEventType,
+    OolerSleepSchedule,
+    SleepScheduleNight,
+)
 
 from custom_components.ooler.coordinator import (
     CLOCK_SYNC_INTERVAL,
@@ -1162,8 +1167,6 @@ async def test_coordinator_async_start_loads_store(
 
 async def test_connection_event_connected(hass: HomeAssistant) -> None:
     """Test CONNECTED event is logged at debug."""
-    from ooler_ble_client import ConnectionEvent, ConnectionEventType
-
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1181,8 +1184,6 @@ async def test_connection_event_connected(hass: HomeAssistant) -> None:
 
 async def test_connection_event_disconnected(hass: HomeAssistant) -> None:
     """Test DISCONNECTED event is logged at debug."""
-    from ooler_ble_client import ConnectionEvent, ConnectionEventType
-
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1200,8 +1201,6 @@ async def test_connection_event_disconnected(hass: HomeAssistant) -> None:
 
 async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
     """Test NOTIFY_STALL event records stall info for diagnostics."""
-    from ooler_ble_client import ConnectionEvent, ConnectionEventType
-
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1210,7 +1209,7 @@ async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
     ):
         coordinator = OolerCoordinator(hass, entry)
 
-    assert coordinator._last_notification_stall is None
+    assert coordinator.last_notification_stall is None
 
     event = ConnectionEvent(
         type=ConnectionEventType.NOTIFY_STALL,
@@ -1219,15 +1218,13 @@ async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
     )
     coordinator._async_on_connection_event(event)
 
-    assert coordinator._last_notification_stall is not None
-    assert coordinator._last_notification_stall["stall_duration_seconds"] == 920.5
-    assert "timestamp" in coordinator._last_notification_stall
+    assert coordinator.last_notification_stall is not None
+    assert coordinator.last_notification_stall["stall_duration_seconds"] == 920.5
+    assert "timestamp" in coordinator.last_notification_stall
 
 
 async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
     """Test FORCED_RECONNECT event increments counter by trigger."""
-    from ooler_ble_client import ConnectionEvent, ConnectionEventType
-
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1236,7 +1233,7 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
     ):
         coordinator = OolerCoordinator(hass, entry)
 
-    assert coordinator._forced_reconnect_counts == {}
+    assert coordinator.forced_reconnect_counts == {}
 
     for trigger in ("notify_stall", "notify_stall", "poll_failure"):
         event = ConnectionEvent(
@@ -1246,7 +1243,7 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
         )
         coordinator._async_on_connection_event(event)
 
-    assert coordinator._forced_reconnect_counts == {
+    assert coordinator.forced_reconnect_counts == {
         "notify_stall": 2,
         "poll_failure": 1,
     }

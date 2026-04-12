@@ -318,7 +318,9 @@ class OolerCoordinator:
                 stall_seconds,
             )
             self._last_notification_stall = {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(
+                    tz=ZoneInfo(self.hass.config.time_zone)
+                ).isoformat(),
                 "stall_duration_seconds": stall_seconds,
             }
         elif event.type is ConnectionEventType.FORCED_RECONNECT:
@@ -374,6 +376,16 @@ class OolerCoordinator:
         """Periodically sync the device clock."""
         if self.connection_enabled and self.client.is_connected:
             self.hass.async_create_task(self._async_sync_clock())
+
+    @property
+    def last_notification_stall(self) -> dict[str, Any] | None:
+        """Return the most recent notification stall info, if any."""
+        return self._last_notification_stall
+
+    @property
+    def forced_reconnect_counts(self) -> dict[str, int]:
+        """Return forced reconnect counts by trigger."""
+        return self._forced_reconnect_counts
 
     @property
     def sleep_schedule_active(self) -> bool:
