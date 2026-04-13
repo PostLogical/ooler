@@ -42,11 +42,11 @@ class TestParseTime:
         assert _parse_time("06:30") == time(6, 30)
 
     def test_invalid_format(self) -> None:
-        with pytest.raises(HomeAssistantError, match="Invalid time format"):
+        with pytest.raises(HomeAssistantError, match="invalid_time_format"):
             _parse_time("22")
 
     def test_invalid_values(self) -> None:
-        with pytest.raises(HomeAssistantError, match="Invalid time"):
+        with pytest.raises(HomeAssistantError, match="invalid_time"):
             _parse_time("25:00")
 
 
@@ -135,29 +135,29 @@ class TestParseNights:
 
     def test_missing_days(self) -> None:
         """Test error when days is missing."""
-        with pytest.raises(HomeAssistantError, match="'days' list"):
+        with pytest.raises(HomeAssistantError, match="missing_days"):
             _parse_nights(
                 [{"bedtime": "22:00", "off_time": "06:00", "temperature": 68}]
             )
 
     def test_missing_bedtime(self) -> None:
         """Test error when bedtime is missing."""
-        with pytest.raises(HomeAssistantError, match="'bedtime' and 'off_time'"):
+        with pytest.raises(HomeAssistantError, match="missing_times"):
             _parse_nights([{"days": [0], "off_time": "06:00", "temperature": 68}])
 
     def test_missing_off_time(self) -> None:
         """Test error when off_time is missing."""
-        with pytest.raises(HomeAssistantError, match="'bedtime' and 'off_time'"):
+        with pytest.raises(HomeAssistantError, match="missing_times"):
             _parse_nights([{"days": [0], "bedtime": "22:00", "temperature": 68}])
 
     def test_missing_temperature(self) -> None:
         """Test error when neither temperature nor temps provided."""
-        with pytest.raises(HomeAssistantError, match="'temperature' or 'temps'"):
+        with pytest.raises(HomeAssistantError, match="missing_temperature"):
             _parse_nights([{"days": [0], "bedtime": "22:00", "off_time": "06:00"}])
 
     def test_invalid_day(self) -> None:
         """Test error for invalid day number."""
-        with pytest.raises(HomeAssistantError, match="Invalid day 7"):
+        with pytest.raises(HomeAssistantError, match="invalid_day"):
             _parse_nights(
                 [
                     {
@@ -171,7 +171,7 @@ class TestParseNights:
 
     def test_empty_days_list(self) -> None:
         """Test error for empty days list."""
-        with pytest.raises(HomeAssistantError, match="'days' list"):
+        with pytest.raises(HomeAssistantError, match="missing_days"):
             _parse_nights(
                 [
                     {
@@ -192,7 +192,7 @@ class TestGetCoordinator:
         hass = MagicMock()
         call = MagicMock(spec=ServiceCall)
         call.data = {}
-        with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+        with pytest.raises(HomeAssistantError, match="device_not_found"):
             _get_coordinator(hass, call)
 
     def test_device_not_found(self) -> None:
@@ -201,7 +201,7 @@ class TestGetCoordinator:
         call = make_mock_call({})
         with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = None
-            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+            with pytest.raises(HomeAssistantError, match="device_not_found"):
                 _get_coordinator(hass, call)
 
     def test_no_ooler_entry_for_device(self) -> None:
@@ -219,7 +219,7 @@ class TestGetCoordinator:
         with patch("custom_components.ooler.services.dr.async_get") as mock_dr:
             mock_dr.return_value.async_get.return_value = device_entry
             hass.config_entries.async_get_entry.return_value = other_entry
-            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+            with pytest.raises(HomeAssistantError, match="device_not_found"):
                 _get_coordinator(hass, call)
 
     def test_found_via_device_id(self) -> None:
@@ -317,7 +317,7 @@ class TestGetCoordinator:
 
         with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = None
-            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+            with pytest.raises(HomeAssistantError, match="device_not_found"):
                 _get_coordinator(hass, call)
 
     def test_entity_no_config_entry(self) -> None:
@@ -331,7 +331,7 @@ class TestGetCoordinator:
 
         with patch("custom_components.ooler.services.er.async_get") as mock_er:
             mock_er.return_value.async_get.return_value = ent_entry
-            with pytest.raises(HomeAssistantError, match="No Ooler device found"):
+            with pytest.raises(HomeAssistantError, match="device_not_found"):
                 _get_coordinator(hass, call)
 
 
@@ -496,7 +496,7 @@ class TestServiceHandlers:
                 "custom_components.ooler.services._get_coordinator",
                 return_value=mock_coordinator,
             ),
-            pytest.raises(HomeAssistantError, match="Too many events"),
+            pytest.raises(HomeAssistantError, match="schedule_write_failed"),
         ):
             await handler(call)
 

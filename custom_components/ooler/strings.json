@@ -54,6 +54,44 @@
       }
     }
   },
+  "exceptions": {
+    "connect_failed": {
+      "message": "Failed to connect to Ooler {address}"
+    },
+    "no_cached_schedule": {
+      "message": "No cached sleep schedule to enable"
+    },
+    "no_active_schedule": {
+      "message": "No active schedule on device to save"
+    },
+    "schedule_not_found": {
+      "message": "No saved schedule named ''{name}''"
+    },
+    "device_not_found": {
+      "message": "No Ooler device found for the given target"
+    },
+    "invalid_time_format": {
+      "message": "Invalid time format ''{value}'', expected HH:MM"
+    },
+    "invalid_time": {
+      "message": "Invalid time ''{value}''"
+    },
+    "missing_days": {
+      "message": "Each night entry must have a ''days'' list"
+    },
+    "missing_times": {
+      "message": "Each night entry must have ''bedtime'' and ''off_time''"
+    },
+    "missing_temperature": {
+      "message": "Each night must have ''temperature'' or ''temps''"
+    },
+    "invalid_day": {
+      "message": "Invalid day {day}, must be 0-6 (Monday-Sunday)"
+    },
+    "schedule_write_failed": {
+      "message": "{error}"
+    }
+  },
   "services": {
     "clean_service": {
       "name": "Clean",

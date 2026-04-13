@@ -1,0 +1,41 @@
+{
+  "entity": {
+    "climate": {
+      "ooler": {
+        "default": "mdi:bed-clock"
+      }
+    },
+    "select": {
+      "saved_schedule": {
+        "default": "mdi:calendar-clock"
+      }
+    },
+    "sensor": {
+      "water_level": {
+        "default": "mdi:water-percent"
+      },
+      "schedule_tonight": {
+        "default": "mdi:weather-night"
+      }
+    },
+    "switch": {
+      "cleaning": {
+        "default": "mdi:vacuum"
+      },
+      "sleep_schedule": {
+        "default": "mdi:calendar-check"
+      },
+      "bluetooth_connection": {
+        "default": "mdi:bluetooth-connect"
+      }
+    }
+  },
+  "services": {
+    "clean_service": "mdi:vacuum",
+    "get_schedule": "mdi:calendar-export",
+    "set_schedule": "mdi:calendar-edit",
+    "save_schedule": "mdi:content-save",
+    "load_schedule": "mdi:calendar-import",
+    "delete_schedule": "mdi:calendar-remove"
+  }
+}

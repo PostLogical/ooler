@@ -66,21 +66,29 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
             ):
                 return entry.runtime_data
 
-    msg = "No Ooler device found for the given target"
-    raise HomeAssistantError(msg)
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="device_not_found",
+    )
 
 
 def _parse_time(value: str) -> time:
     """Parse a HH:MM string into a time object."""
     parts = value.split(":")
     if len(parts) != _TIME_PARTS:
-        msg = f"Invalid time format '{value}', expected HH:MM"
-        raise HomeAssistantError(msg)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_time_format",
+            translation_placeholders={"value": value},
+        )
     try:
         return time(int(parts[0]), int(parts[1]))
     except (ValueError, TypeError) as err:
-        msg = f"Invalid time '{value}'"
-        raise HomeAssistantError(msg) from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_time",
+            translation_placeholders={"value": value},
+        ) from err
 
 
 def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]:
@@ -90,14 +98,18 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
     for night_def in nights_data:
         days = night_def.get("days")
         if not days or not isinstance(days, list):
-            msg = "Each night entry must have a 'days' list"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="missing_days",
+            )
 
         bedtime_str = night_def.get("bedtime")
         off_time_str = night_def.get("off_time")
         if not bedtime_str or not off_time_str:
-            msg = "Each night entry must have 'bedtime' and 'off_time'"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="missing_times",
+            )
 
         bedtime = _parse_time(bedtime_str)
         off_time = _parse_time(off_time_str)
@@ -114,8 +126,10 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
         elif single_temp is not None:
             temps = [(bedtime, int(single_temp))]
         else:
-            msg = "Each night must have 'temperature' or 'temps'"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="missing_temperature",
+            )
 
         # Parse warm wake
         warm_wake = None
@@ -129,8 +143,11 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
         # Replicate across all specified days
         for day in days:
             if not 0 <= day <= _MAX_DAY:
-                msg = f"Invalid day {day}, must be 0-6 (Monday-Sunday)"
-                raise HomeAssistantError(msg)
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_day",
+                    translation_placeholders={"day": str(day)},
+                )
             result.append(
                 SleepScheduleNight(
                     day=int(day),
@@ -216,7 +233,11 @@ def async_register_services(hass: HomeAssistant) -> None:
         try:
             await coordinator.async_write_sleep_schedule(nights)
         except ValueError as err:
-            raise HomeAssistantError(str(err)) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="schedule_write_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     hass.services.async_register(
         DOMAIN,

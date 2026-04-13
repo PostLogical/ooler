@@ -64,10 +64,10 @@ class TestOolerWaterLevelSensor:
         entity = self._make_entity()
         assert entity.unique_id == f"{OOLER_ADDRESS}_water_level_sensor"
 
-    def test_name(self) -> None:
-        """Test entity name."""
+    def test_translation_key(self) -> None:
+        """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.name == "Water Level"
+        assert entity.translation_key == "water_level"
 
     def test_native_value(self) -> None:
         """Test water level value."""
@@ -110,10 +110,10 @@ class TestOolerScheduleTonightSensor:
         entity = self._make_entity()
         assert entity.unique_id == f"{OOLER_ADDRESS}_schedule_tonight"
 
-    def test_name(self) -> None:
-        """Test entity name."""
+    def test_translation_key(self) -> None:
+        """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.name == "Schedule Tonight"
+        assert entity.translation_key == "schedule_tonight"
 
     def test_native_value_no_schedule(self) -> None:
         """Test value is None when no schedule tonight."""

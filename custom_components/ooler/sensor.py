@@ -50,7 +50,6 @@ class OolerWaterLevelSensor(OolerEntity, SensorEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the water level sensor entity."""
         super().__init__(coordinator)
-        self._attr_name = "Water Level"
         self._attr_unique_id = f"{coordinator.address}_water_level_sensor"
 
     @property
@@ -67,7 +66,6 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the schedule tonight sensor entity."""
         super().__init__(coordinator)
-        self._attr_name = "Schedule Tonight"
         self._attr_unique_id = f"{coordinator.address}_schedule_tonight"
 
     @property

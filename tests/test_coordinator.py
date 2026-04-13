@@ -705,7 +705,7 @@ async def test_coordinator_enable_sleep_schedule_no_cache() -> None:
     coordinator, _ = make_coordinator()
     coordinator._cached_sleep_schedule = None
 
-    with pytest.raises(HomeAssistantError, match="No cached sleep schedule"):
+    with pytest.raises(HomeAssistantError, match="no_cached_schedule"):
         await coordinator.async_enable_sleep_schedule()
 
 
@@ -993,7 +993,7 @@ async def test_coordinator_save_schedule_no_active() -> None:
     coordinator, client = make_coordinator()
     client.sleep_schedule = None
 
-    with pytest.raises(HomeAssistantError, match="No active schedule"):
+    with pytest.raises(HomeAssistantError, match="no_active_schedule"):
         await coordinator.async_save_schedule("test")
 
 
@@ -1002,7 +1002,7 @@ async def test_coordinator_save_schedule_empty_active() -> None:
     coordinator, client = make_coordinator()
     client.sleep_schedule = make_empty_schedule()
 
-    with pytest.raises(HomeAssistantError, match="No active schedule"):
+    with pytest.raises(HomeAssistantError, match="no_active_schedule"):
         await coordinator.async_save_schedule("test")
 
 
@@ -1049,7 +1049,7 @@ async def test_coordinator_delete_saved_schedule_not_found() -> None:
     """Test deleting a nonexistent schedule raises."""
     coordinator, _ = make_coordinator()
 
-    with pytest.raises(HomeAssistantError, match="No saved schedule named"):
+    with pytest.raises(HomeAssistantError, match="schedule_not_found"):
         await coordinator.async_delete_saved_schedule("nonexistent")
 
 
@@ -1078,7 +1078,7 @@ async def test_coordinator_load_saved_schedule_not_found() -> None:
     """Test loading a nonexistent schedule raises."""
     coordinator, _ = make_coordinator()
 
-    with pytest.raises(HomeAssistantError, match="No saved schedule named"):
+    with pytest.raises(HomeAssistantError, match="schedule_not_found"):
         await coordinator.async_load_saved_schedule("nonexistent")
 
 

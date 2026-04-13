@@ -66,10 +66,10 @@ class TestOolerCleaningSwitch:
         entity = self._make_entity()
         assert entity.unique_id == f"{OOLER_ADDRESS}_cleaning_binary_sensor"
 
-    def test_name(self) -> None:
-        """Test entity name."""
+    def test_translation_key(self) -> None:
+        """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.name == "Cleaning"
+        assert entity.translation_key == "cleaning"
 
     def test_is_on(self) -> None:
         """Test is_on reflects clean state."""
@@ -124,10 +124,10 @@ class TestOolerSleepScheduleSwitch:
         entity = self._make_entity()
         assert entity.unique_id == f"{OOLER_ADDRESS}_sleep_schedule"
 
-    def test_name(self) -> None:
-        """Test entity name."""
+    def test_translation_key(self) -> None:
+        """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.name == "Sleep Schedule"
+        assert entity.translation_key == "sleep_schedule"
 
     def test_is_on_active(self) -> None:
         """Test is_on when schedule is active."""

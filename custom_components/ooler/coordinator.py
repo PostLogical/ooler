@@ -233,8 +233,11 @@ class OolerCoordinator:
             _LOGGER.warning(
                 "Failed to connect to Ooler %s", self.address, exc_info=True
             )
-            msg = f"Failed to connect to Ooler {self.address}"
-            raise HomeAssistantError(msg) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="connect_failed",
+                translation_placeholders={"address": self.address},
+            ) from err
         await self._async_post_connect()
 
     async def _async_connect(self, *, stagger: bool = False) -> None:
@@ -403,8 +406,10 @@ class OolerCoordinator:
     async def async_enable_sleep_schedule(self) -> None:
         """Re-enable the cached sleep schedule on the device."""
         if self._cached_sleep_schedule is None:
-            msg = "No cached sleep schedule to enable"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="no_cached_schedule",
+            )
         await self.async_ensure_connected()
         await self.client.set_sleep_schedule(self._cached_sleep_schedule.nights)
         self._async_notify_listeners()
@@ -483,8 +488,10 @@ class OolerCoordinator:
         """Save the current device schedule with a name."""
         schedule = self.client.sleep_schedule
         if schedule is None or not schedule.nights:
-            msg = "No active schedule on device to save"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="no_active_schedule",
+            )
         self._saved_schedules[name] = schedule
         self._active_saved_name = name
         await self._async_save_store()
@@ -493,8 +500,11 @@ class OolerCoordinator:
     async def async_delete_saved_schedule(self, name: str) -> None:
         """Delete a saved schedule by name."""
         if name not in self._saved_schedules:
-            msg = f"No saved schedule named '{name}'"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="schedule_not_found",
+                translation_placeholders={"name": name},
+            )
         del self._saved_schedules[name]
         if self._active_saved_name == name:
             self._active_saved_name = None
@@ -504,8 +514,11 @@ class OolerCoordinator:
     async def async_load_saved_schedule(self, name: str) -> None:
         """Load a saved schedule onto the device."""
         if name not in self._saved_schedules:
-            msg = f"No saved schedule named '{name}'"
-            raise HomeAssistantError(msg)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="schedule_not_found",
+                translation_placeholders={"name": name},
+            )
         schedule = self._saved_schedules[name]
         await self.async_ensure_connected()
         await self.client.set_sleep_schedule(schedule.nights)

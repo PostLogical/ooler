@@ -66,10 +66,10 @@ class TestOolerSavedScheduleSelect:
         entity = self._make_entity()
         assert entity.unique_id == f"{OOLER_ADDRESS}_saved_schedule"
 
-    def test_name(self) -> None:
-        """Test entity name."""
+    def test_translation_key(self) -> None:
+        """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.name == "Saved Schedule"
+        assert entity.translation_key == "saved_schedule"
 
     def test_available_connected_with_schedules(self) -> None:
         """Test available when connected and schedules exist."""

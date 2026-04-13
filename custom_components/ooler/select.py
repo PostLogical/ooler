@@ -31,7 +31,6 @@ class OolerSavedScheduleSelect(OolerEntity, SelectEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator)
-        self._attr_name = "Saved Schedule"
         self._attr_unique_id = f"{coordinator.address}_saved_schedule"
 
     @property

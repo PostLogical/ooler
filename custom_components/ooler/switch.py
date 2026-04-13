@@ -40,7 +40,6 @@ class OolerCleaningSwitch(OolerEntity, SwitchEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
         super().__init__(coordinator)
-        self._attr_name = "Cleaning"
         self._attr_unique_id = f"{coordinator.address}_cleaning_binary_sensor"
 
     @property
@@ -69,7 +68,6 @@ class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
         super().__init__(coordinator)
-        self._attr_name = "Sleep Schedule"
         self._attr_unique_id = f"{coordinator.address}_sleep_schedule"
 
     @property
@@ -110,7 +108,6 @@ class OolerConnectionSwitch(OolerEntity, SwitchEntity):
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
         super().__init__(coordinator)
-        self._attr_name = "Bluetooth Connection"
         self._attr_unique_id = f"{coordinator.address}_connection_binary_sensor"
 
     @property
