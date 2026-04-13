@@ -120,7 +120,7 @@ class OolerCoordinator:
             int(address.replace(":", ""), 16) % 1500 + 500
         ) / 1000
 
-        self._last_notification_stall: dict[str, Any] | None = None
+        self._last_subscription_mismatch: dict[str, Any] | None = None
         self._forced_reconnect_counts: dict[str, int] = {}
 
         self._store: Store[dict[str, Any]] = Store(
@@ -306,23 +306,25 @@ class OolerCoordinator:
     @callback
     def _async_on_connection_event(self, event: ConnectionEvent) -> None:
         """Handle library connection event callback."""
-        if event.type is ConnectionEventType.CONNECTED:
-            _LOGGER.debug("Ooler %s: connection event CONNECTED", self.address)
-        elif event.type is ConnectionEventType.DISCONNECTED:
-            _LOGGER.debug("Ooler %s: connection event DISCONNECTED", self.address)
-        elif event.type is ConnectionEventType.NOTIFY_STALL:
-            stall_seconds = event.detail["stall_duration_seconds"]
+        _LOGGER.debug("Ooler %s: connection event %s", self.address, event.type.value)
+        if event.type is ConnectionEventType.SUBSCRIPTION_MISMATCH:
+            fields = ", ".join(event.detail["fields"])
             _LOGGER.warning(
-                "Ooler %s: notification stall detected (%.0fs)",
+                "Ooler %s: poll detected missed notifications on %s",
                 self.address,
-                stall_seconds,
+                fields,
             )
-            self._last_notification_stall = {
+            self._last_subscription_mismatch = {
                 "timestamp": datetime.now(
                     tz=ZoneInfo(self.hass.config.time_zone)
                 ).isoformat(),
-                "stall_duration_seconds": stall_seconds,
+                "fields": event.detail["fields"],
             }
+        elif event.type is ConnectionEventType.SUBSCRIPTION_RECOVERED:
+            _LOGGER.info(
+                "Ooler %s: re-subscribed after poll/state mismatch",
+                self.address,
+            )
         elif event.type is ConnectionEventType.FORCED_RECONNECT:
             trigger = event.detail["trigger"]
             _LOGGER.info(
@@ -378,9 +380,9 @@ class OolerCoordinator:
             self.hass.async_create_task(self._async_sync_clock())
 
     @property
-    def last_notification_stall(self) -> dict[str, Any] | None:
-        """Return the most recent notification stall info, if any."""
-        return self._last_notification_stall
+    def last_subscription_mismatch(self) -> dict[str, Any] | None:
+        """Return the most recent subscription mismatch info, if any."""
+        return self._last_subscription_mismatch
 
     @property
     def forced_reconnect_counts(self) -> dict[str, int]:

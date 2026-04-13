@@ -47,7 +47,7 @@ async def async_get_config_entry_diagnostics(
         },
         "sleep_schedule": schedule_data,
         "connection_events": {
-            "last_notification_stall": coordinator.last_notification_stall,
+            "last_subscription_mismatch": coordinator.last_subscription_mismatch,
             "forced_reconnect_counts": dict(coordinator.forced_reconnect_counts),
         },
     }

@@ -1,32 +1,38 @@
 # Release Notes
 
-## 2026.3.7b7
+## 2026.3.7b8
 
-Connection health monitoring via `ooler_ble_client` 0.11.0. Requires library 0.11.0. 241 tests, 100% coverage.
+Poll/state consistency detection via `ooler_ble_client` 0.11.1. Requires library 0.11.1. 242 tests, 100% coverage.
 
 ---
 
-### Library-driven connection healing
+### Library 0.11.0 → 0.11.1: gap watchdog replaced with poll/state consistency detector
 
-The library now owns a notify-staleness watchdog and forced-reconnect logic internally. The integration subscribes to the new **connection event channel** to observe what the library is doing, without duplicating any reconnect logic.
+The 0.11.0 overnight soak revealed that the 15-minute silence-based watchdog produced 30 spurious forced reconnects during natural coast periods (pump off, at setpoint). Library 0.11.1 replaces it entirely with a poll/state consistency detector that compares fresh GATT reads against cached state on every poll. A disagreement is positive proof of a missed notification — no more false positives from quiet-but-healthy connections.
 
-- **NOTIFY_STALL** — logged at WARNING when the BLE notification stream has been silent for >15 minutes while the device is powered. Purely informational; entities stay available while the library heals.
-- **FORCED_RECONNECT** — logged at INFO when the library initiates a self-healing reconnect (triggered by notification stall, poll failure, or write failure). `is_connected` remains `True` throughout the window — no entity flap.
-- **CONNECTED / DISCONNECTED** — logged at DEBUG for observability. The existing disconnect-handling path continues to manage entity availability on actual connection loss.
+Recovery is a two-tier ladder:
+1. **Tier 1** — re-subscribe notifications on the existing BleakClient.
+2. **Tier 2** — full forced reconnect only if the next poll still shows a mismatch.
+
+### Connection event changes
+
+All five event types now emit a structured `connection event <type>` DEBUG log line (fixing the 0.11.0 bug where only CONNECTED/DISCONNECTED reached the structured logger).
+
+- **SUBSCRIPTION_MISMATCH** (new) — logged at WARNING when a poll detects cached state disagrees with GATT. Includes the list of mismatched fields.
+- **SUBSCRIPTION_RECOVERED** (new) — logged at INFO when Tier 1 re-subscribe succeeds.
+- **FORCED_RECONNECT** — now supports `trigger="subscription_mismatch"` (Tier 2 escalation). The `"notify_stall"` trigger is removed.
+- **NOTIFY_STALL** — removed from the library entirely. All integration references deleted.
+- **CONNECTED / DISCONNECTED** — unchanged.
 
 ### Diagnostics
 
-The diagnostics platform now includes a `connection_events` section:
-
-- `last_notification_stall` — wall-clock timestamp and stall duration (seconds) of the most recent stall event.
-- `forced_reconnect_counts` — running counter broken down by trigger (`notify_stall`, `poll_failure`, `write_failure`).
-
-These are useful for overnight soak testing on ESPHome proxies — expect 0–2 stall/reconnect pairs per device per 24 hours on known-bad devices.
+- `last_subscription_mismatch` replaces `last_notification_stall` — includes wall-clock timestamp and the list of mismatched field names.
+- `forced_reconnect_counts` — trigger keys updated (`subscription_mismatch` replaces `notify_stall`).
 
 ### What didn't change
 
 - No new entities, switches, or sensors.
-- No changes to entity availability logic — the library's flap suppression handles forced-reconnect windows.
+- No changes to entity availability logic.
 - Coordinator timers (reconnect, poll, clock sync) are unchanged.
 - The state callback channel (`register_callback`) is unchanged.
 

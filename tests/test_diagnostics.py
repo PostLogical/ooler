@@ -21,7 +21,7 @@ async def test_diagnostics(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator.last_notification_stall = None
+    coordinator.last_subscription_mismatch = None
     coordinator.forced_reconnect_counts = {}
 
     entry = MagicMock()
@@ -42,7 +42,7 @@ async def test_diagnostics(hass) -> None:
     assert result["device_state"]["water_level"] == 80
     assert result["device_state"]["clean"] is False
     assert result["sleep_schedule"]["active"] is False
-    assert result["connection_events"]["last_notification_stall"] is None
+    assert result["connection_events"]["last_subscription_mismatch"] is None
     assert result["connection_events"]["forced_reconnect_counts"] == {}
 
 
@@ -53,7 +53,7 @@ async def test_diagnostics_with_schedule(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator.last_notification_stall = None
+    coordinator.last_subscription_mismatch = None
     coordinator.forced_reconnect_counts = {}
 
     entry = MagicMock()
@@ -75,11 +75,14 @@ async def test_diagnostics_with_connection_events(hass) -> None:
     coordinator = MagicMock(spec=OolerCoordinator)
     coordinator.client = client
     coordinator.connection_enabled = True
-    coordinator.last_notification_stall = {
+    coordinator.last_subscription_mismatch = {
         "timestamp": "2026-04-12T03:15:00",
-        "stall_duration_seconds": 920.5,
+        "fields": ["actual_temperature", "set_temperature"],
     }
-    coordinator.forced_reconnect_counts = {"notify_stall": 2, "poll_failure": 1}
+    coordinator.forced_reconnect_counts = {
+        "subscription_mismatch": 2,
+        "poll_failure": 1,
+    }
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -88,10 +91,10 @@ async def test_diagnostics_with_connection_events(hass) -> None:
 
     result = await async_get_config_entry_diagnostics(hass, entry)
 
-    stall = result["connection_events"]["last_notification_stall"]
-    assert stall["stall_duration_seconds"] == 920.5
-    assert stall["timestamp"] == "2026-04-12T03:15:00"
+    mismatch = result["connection_events"]["last_subscription_mismatch"]
+    assert mismatch["fields"] == ["actual_temperature", "set_temperature"]
+    assert mismatch["timestamp"] == "2026-04-12T03:15:00"
     assert result["connection_events"]["forced_reconnect_counts"] == {
-        "notify_stall": 2,
+        "subscription_mismatch": 2,
         "poll_failure": 1,
     }

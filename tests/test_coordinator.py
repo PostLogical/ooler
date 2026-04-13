@@ -1199,8 +1199,8 @@ async def test_connection_event_disconnected(hass: HomeAssistant) -> None:
     # No state change expected — just logging
 
 
-async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
-    """Test NOTIFY_STALL event records stall info for diagnostics."""
+async def test_connection_event_subscription_mismatch(hass: HomeAssistant) -> None:
+    """Test SUBSCRIPTION_MISMATCH event records mismatch info for diagnostics."""
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1209,18 +1209,40 @@ async def test_connection_event_notify_stall(hass: HomeAssistant) -> None:
     ):
         coordinator = OolerCoordinator(hass, entry)
 
-    assert coordinator.last_notification_stall is None
+    assert coordinator.last_subscription_mismatch is None
 
     event = ConnectionEvent(
-        type=ConnectionEventType.NOTIFY_STALL,
+        type=ConnectionEventType.SUBSCRIPTION_MISMATCH,
         timestamp=0.0,
-        detail={"stall_duration_seconds": 920.5},
+        detail={"fields": ["actual_temperature", "set_temperature"]},
     )
     coordinator._async_on_connection_event(event)
 
-    assert coordinator.last_notification_stall is not None
-    assert coordinator.last_notification_stall["stall_duration_seconds"] == 920.5
-    assert "timestamp" in coordinator.last_notification_stall
+    assert coordinator.last_subscription_mismatch is not None
+    assert coordinator.last_subscription_mismatch["fields"] == [
+        "actual_temperature",
+        "set_temperature",
+    ]
+    assert "timestamp" in coordinator.last_subscription_mismatch
+
+
+async def test_connection_event_subscription_recovered(hass: HomeAssistant) -> None:
+    """Test SUBSCRIPTION_RECOVERED event is logged."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.SUBSCRIPTION_RECOVERED,
+        timestamp=0.0,
+        detail=None,
+    )
+    coordinator._async_on_connection_event(event)
+    # No state change expected — just logging
 
 
 async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
@@ -1235,7 +1257,7 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
 
     assert coordinator.forced_reconnect_counts == {}
 
-    for trigger in ("notify_stall", "notify_stall", "poll_failure"):
+    for trigger in ("subscription_mismatch", "subscription_mismatch", "poll_failure"):
         event = ConnectionEvent(
             type=ConnectionEventType.FORCED_RECONNECT,
             timestamp=0.0,
@@ -1244,6 +1266,6 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
         coordinator._async_on_connection_event(event)
 
     assert coordinator.forced_reconnect_counts == {
-        "notify_stall": 2,
+        "subscription_mismatch": 2,
         "poll_failure": 1,
     }
