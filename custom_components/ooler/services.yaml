@@ -14,16 +14,12 @@ get_schedule:
   target:
     entity:
       integration: ooler
-    device:
-      integration: ooler
 
 save_schedule:
   name: Save schedule
   description: Save the current device schedule with a name for later use.
   target:
     entity:
-      integration: ooler
-    device:
       integration: ooler
   fields:
     name:
@@ -40,8 +36,6 @@ delete_schedule:
   target:
     entity:
       integration: ooler
-    device:
-      integration: ooler
   fields:
     name:
       name: Name
@@ -56,8 +50,6 @@ load_schedule:
   description: Write a previously saved schedule to the device.
   target:
     entity:
-      integration: ooler
-    device:
       integration: ooler
   fields:
     name:
@@ -77,8 +69,6 @@ set_schedule:
     temperature changes.
   target:
     entity:
-      integration: ooler
-    device:
       integration: ooler
   fields:
     nights:

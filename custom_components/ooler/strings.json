@@ -65,25 +65,25 @@
       "message": "No active schedule on device to save"
     },
     "schedule_not_found": {
-      "message": "No saved schedule named ''{name}''"
+      "message": "No saved schedule named \"{name}\""
     },
     "device_not_found": {
       "message": "No Ooler device found for the given target"
     },
     "invalid_time_format": {
-      "message": "Invalid time format ''{value}'', expected HH:MM"
+      "message": "Invalid time format {value}, expected HH:MM"
     },
     "invalid_time": {
-      "message": "Invalid time ''{value}''"
+      "message": "Invalid time {value}"
     },
     "missing_days": {
-      "message": "Each night entry must have a ''days'' list"
+      "message": "Each night entry must have a \"days\" list"
     },
     "missing_times": {
-      "message": "Each night entry must have ''bedtime'' and ''off_time''"
+      "message": "Each night entry must have \"bedtime\" and \"off_time\""
     },
     "missing_temperature": {
-      "message": "Each night must have ''temperature'' or ''temps''"
+      "message": "Each night must have \"temperature\" or \"temps\""
     },
     "invalid_day": {
       "message": "Invalid day {day}, must be 0-6 (Monday-Sunday)"

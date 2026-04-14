@@ -82,7 +82,7 @@ The device clock is synced to your Home Assistant timezone on connect and every 
 ```yaml
 service: ooler.set_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   nights:
     - days: [0, 1, 2, 3, 4]
@@ -95,7 +95,7 @@ data:
 ```yaml
 service: ooler.set_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   nights:
     - days: [5, 6]
@@ -111,7 +111,7 @@ data:
 ```yaml
 service: ooler.set_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   nights:
     - days: [0, 1, 2, 3, 4]
@@ -128,7 +128,7 @@ data:
 ```yaml
 service: ooler.set_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   nights:
     - days: [0, 1, 2, 3, 4]
@@ -148,7 +148,7 @@ data:
 ```yaml
 service: ooler.get_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 ```
 
 **Save and manage named schedules:**
@@ -156,26 +156,26 @@ target:
 # Save the current device schedule
 service: ooler.save_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   name: "weekday"
 
 # Load it back later
 service: ooler.load_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   name: "weekday"
 
 # Delete when no longer needed
 service: ooler.delete_schedule
 target:
-  device_id: YOUR_DEVICE_ID
+  entity_id: climate.ooler_XXXX
 data:
   name: "weekday"
 ```
 
-All schedule services can target either the device or any of its entities (e.g., the climate entity). Days are numbered 0=Monday through 6=Sunday. Temperatures are in Fahrenheit (the device's internal format). Valid temperatures are 54-116F, plus the special values 45 (LO) and 120 (HI).
+Schedule services target any Ooler entity (e.g., the climate entity). Device and area targeting also work through the HA UI. Days are numbered 0=Monday through 6=Sunday. Temperatures are in Fahrenheit (the device's internal format). Valid temperatures are 54-116F, plus the special values 45 (LO) and 120 (HI).
 
 ### Data updates
 
