@@ -6,14 +6,18 @@ This is a Home Assistant custom component (`custom_components/ooler/`) that cont
 
 ### Files
 
-- `__init__.py` — Entry setup/unload. Creates `OolerCoordinator`, forwards platforms. ~20 lines.
-- `coordinator.py` — `OolerCoordinator` class. Manages BLE connection lifecycle, reconnection, polling, temperature unit sync. This is where connection management lives.
+- `__init__.py` — Entry setup/unload. Creates `OolerCoordinator`, forwards platforms, registers/unregisters services. ~20 lines.
+- `coordinator.py` — `OolerCoordinator` class. Manages BLE connection lifecycle, reconnection, polling, temperature unit sync, sleep schedule state, clock sync, and saved schedule persistence.
 - `entity.py` — `OolerEntity` base class. Provides `device_info`, `available`, and listener registration shared by all entity platforms.
-- `climate.py` — Climate entity (thermostat control: power, temperature, fan mode). Registers the `clean_service`.
-- `sensor.py` — Water level sensor entity.
-- `switch.py` — Two switches: Cleaning (UV light) and Bluetooth Connection (enable/disable auto-connect).
+- `climate.py` — Climate entity (thermostat control: power, temperature, fan mode).
+- `sensor.py` — Two sensors: Water level (%) and Schedule Tonight (tonight's sleep schedule summary with detailed attributes).
+- `select.py` — Saved Schedule select entity. Lets users pick from named saved schedules to load onto the device.
+- `switch.py` — Three switches: Cleaning (UV light), Sleep Schedule (toggle active schedule on/off with caching), and Bluetooth Connection (enable/disable auto-connect).
+- `services.py` — Service handlers: `get_schedule`, `set_schedule`, `save_schedule`, `load_schedule`, `delete_schedule`, `clean_service`. Supports both device_id and entity_id targeting.
+- `services.yaml` — Service definitions for the UI.
 - `config_flow.py` — Bluetooth discovery, GATT connection verification, reconfigure flow.
-- `diagnostics.py` — Diagnostics platform for debugging.
+- `diagnostics.py` — Diagnostics platform including connection health metrics (subscription mismatches, forced reconnects).
+- `const.py` — Constants and logger.
 
 ### Library boundary
 
@@ -22,13 +26,18 @@ The integration never touches BLE/GATT directly. All BLE operations go through `
 - `client.connect()` / `client.stop()` — connection lifecycle
 - `client.set_power()`, `client.set_temperature()`, `client.set_mode()`, `client.set_clean()` — device commands
 - `client.set_temperature_unit()` — toggle device display unit
-- `client.async_poll()` — read all characteristics
+- `client.async_poll()` — read all characteristics (also runs poll/state consistency detection)
 - `client.register_callback()` — state change notifications
+- `client.register_connection_event_callback()` — connection event notifications (mismatch, recovery, forced reconnect)
 - `client.set_ble_device()` — update the BLEDevice for proxy routing
+- `client.read_sleep_schedule()` — read schedule from device (called once on connect)
+- `client.set_sleep_schedule()` / `client.clear_sleep_schedule()` — write/clear schedule
+- `client.sync_clock()` — sync device clock to HA timezone
 - `client.state` — `OolerBLEState` with current device state
+- `client.sleep_schedule` — `OolerSleepSchedule` with current schedule (read on connect only)
 - `client.is_connected` — connection status
 
-The library handles GATT retries, `establish_connection()` via `bleak_retry_connector`, notification subscriptions, and `_connect_lock` serialization internally.
+The library handles GATT retries, `establish_connection()` via `bleak_retry_connector`, notification subscriptions, poll/state consistency detection, and `_connect_lock` serialization internally.
 
 ## Connection management
 
@@ -62,13 +71,39 @@ Reconnect delay is deterministic per device (derived from MAC address hash, 0.5-
 
 `async_unload_entry()` calls `async_stop()` before `async_unload_platforms()` to give the BLE proxy time to tear down old GATT subscriptions before the new coordinator subscribes.
 
+### BLE proxy resilience
+
+ESPHome Bluetooth proxies can drop BLE notification subscriptions without disconnecting. The library's poll/state consistency detector (in `async_poll()`) compares fresh GATT reads against cached state on four notify-backed fields. On mismatch:
+
+1. **Tier 1**: Re-subscribe notifications on existing connection (`SUBSCRIPTION_MISMATCH` → `SUBSCRIPTION_RECOVERED`)
+2. **Tier 2**: Full forced reconnect if next poll still shows mismatch (`FORCED_RECONNECT`)
+
+The coordinator handles these via `_async_on_connection_event()` and tracks them in diagnostics (`_last_subscription_mismatch`, `_forced_reconnect_counts`).
+
 ## Temperature unit sync
 
 The Ooler's display temperature unit is synced to match HA's unit system on first connect only (`_unit_synced` flag). The GATT characteristic for set_temperature is always stored in Fahrenheit internally; the library converts based on the display unit setting.
 
+## Sleep schedules
+
+### Device model
+
+The device stores one active schedule as a flat list of `(minute_of_week, temp_f)` events. The library parses these into `OolerSleepSchedule` with `list[SleepScheduleNight]`, each night having optional `WarmWake`.
+
+### Integration behavior
+
+- Schedule is read once on connect (`_async_post_connect`) — not polled, since only one BLE client connects at a time.
+- Sleep Schedule switch: toggle caches the schedule on disable (`clear_sleep_schedule`), restores on enable (`set_sleep_schedule`).
+- Saved schedules are stored per-device in `homeassistant.helpers.storage.Store` and persist across restarts.
+- Clock is synced to HA timezone on connect and every 4 hours (`CLOCK_SYNC_INTERVAL`).
+
+### App compatibility
+
+The Ooler app does not read schedule state from the device; it assumes it is the sole arbiter. Schedules with per-night variation (different temps on different days) work with the device but the app may not display them correctly.
+
 ## Testing
 
-- 117 tests, 100% coverage required (`pyproject.toml` fail-under=100)
+- 242 tests, 100% coverage required (`pyproject.toml` fail-under=100)
 - Tests use `MagicMock`/`AsyncMock` for the library client
 - `make_mock_hass()` closes coroutines passed to `async_create_task` to prevent unawaited coroutine warnings
 - Run: `pytest tests/ --cov=custom_components/ooler --cov-report=term-missing`
@@ -78,5 +113,4 @@ The Ooler's display temperature unit is synced to match HA's unit system on firs
 - **ESP32 proxy slots**: Each Ooler uses 4 BLE notification slots. ESPHome provides 12; raw ESP-IDF provides 9. Multiple BLE devices on one proxy can exhaust slots.
 - **Single BLE connection**: The Ooler only supports one active BLE connection. The Ooler app and HA cannot connect simultaneously.
 - **Water level sensor**: Reports only 0%, 50%, or 100% — it's a very rough estimate.
-- **Wattage sensor**: Removed (unreliable characteristic). Entities will show "unavailable" after upgrade.
-- **Pause service**: Removed. Use the Bluetooth Connection switch instead.
+- **Temperature range**: Valid temps are 54-116F, plus special values 45 (LO) and 120 (HI).

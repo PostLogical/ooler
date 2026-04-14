@@ -1,5 +1,25 @@
 # Release Notes
 
+## 2026.3.7b9
+
+Gold quality scale compliance. 242 tests, 100% coverage.
+
+---
+
+### Exception translations
+
+All `HomeAssistantError` raises now use `translation_key` and `translation_placeholders` instead of hardcoded English strings. An `exceptions` section has been added to `strings.json` with 12 translation keys covering connection failures, schedule validation errors, and service input parsing.
+
+### Icon translations
+
+New `icons.json` declares Material Design Icons for all 7 entities and 6 services, replacing platform defaults.
+
+### Entity name cleanup
+
+Removed redundant `_attr_name` from entities that already use `_attr_translation_key`. Entity names are now sourced exclusively from `strings.json` translations.
+
+---
+
 ## 2026.3.7b8
 
 Poll/state consistency detection via `ooler_ble_client` 0.11.1. Requires library 0.11.1. 242 tests, 100% coverage.
