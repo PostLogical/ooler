@@ -16,6 +16,7 @@ from .const import DOMAIN
 
 if TYPE_CHECKING:
     from . import OolerConfigEntry
+    from .coordinator import OolerCoordinator
 
 SERVICE_GET_SCHEDULE = "get_schedule"
 SERVICE_SAVE_SCHEDULE = "save_schedule"
@@ -27,7 +28,7 @@ _TIME_PARTS = 2
 _MAX_DAY = 6
 
 
-def _get_coordinator(hass: HomeAssistant, call: ServiceCall):
+def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> OolerCoordinator:
     """
     Resolve the coordinator from a service call target.
 
@@ -160,7 +161,7 @@ def _parse_nights(nights_data: list[dict[str, Any]]) -> list[SleepScheduleNight]
     return result
 
 
-def _format_schedule_response(coordinator) -> dict[str, Any]:
+def _format_schedule_response(coordinator: OolerCoordinator) -> dict[str, Any]:
     """Format the device schedule as a set_schedule-compatible response."""
     schedule = coordinator.client.sleep_schedule
     if schedule is None or not schedule.nights:

@@ -84,7 +84,10 @@ def _deserialize_schedule(data: dict[str, Any]) -> OolerSleepSchedule:
             SleepScheduleNight(
                 day=night_data["day"],
                 temps=temps,
-                off_time=time(*map(int, night_data["off_time"].split(":"))),
+                off_time=time(
+                    int(night_data["off_time"].split(":")[0]),
+                    int(night_data["off_time"].split(":")[1]),
+                ),
                 warm_wake=warm_wake,
             )
         )
@@ -311,6 +314,7 @@ class OolerCoordinator:
         """Handle library connection event callback."""
         _LOGGER.debug("Ooler %s: connection event %s", self.address, event.type.value)
         if event.type is ConnectionEventType.SUBSCRIPTION_MISMATCH:
+            assert event.detail is not None
             fields = ", ".join(event.detail["fields"])
             _LOGGER.warning(
                 "Ooler %s: poll detected missed notifications on %s",
@@ -321,7 +325,7 @@ class OolerCoordinator:
                 "timestamp": datetime.now(
                     tz=ZoneInfo(self.hass.config.time_zone)
                 ).isoformat(),
-                "fields": event.detail["fields"],
+                "fields": event.detail["fields"],  # detail guaranteed non-None above
             }
         elif event.type is ConnectionEventType.SUBSCRIPTION_RECOVERED:
             _LOGGER.info(
@@ -329,6 +333,7 @@ class OolerCoordinator:
                 self.address,
             )
         elif event.type is ConnectionEventType.FORCED_RECONNECT:
+            assert event.detail is not None
             trigger = event.detail["trigger"]
             _LOGGER.info(
                 "Ooler %s: forced reconnect triggered by %s",

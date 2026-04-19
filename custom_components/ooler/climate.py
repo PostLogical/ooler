@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, cast
 
-from homeassistant.components.climate import (
-    ClimateEntity,
+from homeassistant.components.climate import ClimateEntity
+from homeassistant.components.climate.const import (
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
@@ -199,7 +199,9 @@ class Ooler(OolerEntity, ClimateEntity):
             )
             return
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_mode(fan_mode)
+        await self.coordinator.client.set_mode(
+            cast("Literal['Silent', 'Regular', 'Boost']", fan_mode)
+        )
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
