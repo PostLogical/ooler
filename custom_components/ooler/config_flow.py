@@ -6,18 +6,17 @@ import asyncio
 from typing import Any
 
 import voluptuous as vol
-from bleak.backends.device import BLEDevice
+from bleak.exc import BleakError
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
     async_last_service_info,
 )
-from homeassistant.config_entries import ConfigFlow
-from homeassistant.const import CONF_ADDRESS  # , CONF_TOKEN
-from homeassistant.data_entry_flow import FlowResult
-from ooler_ble_client import OolerBLEDevice, test_connection
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import CONF_ADDRESS
+from ooler_ble_client import OolerBLEDevice
 
-from .const import CONF_MODEL, DOMAIN  # , _LOGGER
+from .const import _LOGGER, CONF_MODEL, DOMAIN
 
 
 class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -29,14 +28,12 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize."""
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, str] = {}
-        self._pairing_task: asyncio.Task | None = None
+        self._pairing_task: asyncio.Task[None] | None = None
         self._paired: bool = False
-        self._bledevice: BLEDevice | None = None
-        self._client: OolerBLEDevice | None = None
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the bluetooth discovery step."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
@@ -47,7 +44,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_bluetooth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Confirm discovery."""
         assert self._discovery_info is not None
         discovery_info = self._discovery_info
@@ -69,7 +66,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the user step to pick discovered device."""
         if user_input is not None:
             address = user_input[CONF_ADDRESS]
@@ -113,19 +110,19 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_wait_for_pairing_mode(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Wait for device to enter pairing mode."""
+    ) -> ConfigFlowResult:
+        """Verify BLE connection to the device."""
         if not self._pairing_task:
             discovery_info = self._discovery_info
             if discovery_info is None:
                 return self.async_show_progress_done(next_step_id="pairing_timeout")
-            bledevice = discovery_info.device
             self._pairing_task = self.hass.async_create_task(
-                self._async_check_ooler_connection(bledevice)
+                self._async_verify_connection(discovery_info)
             )
             return self.async_show_progress(
                 step_id="wait_for_pairing_mode",
                 progress_action="wait_for_pairing_mode",
+                progress_task=self._pairing_task,
             )
         try:
             await self._pairing_task
@@ -133,11 +130,13 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             self._pairing_task = None
             return self.async_show_progress_done(next_step_id="pairing_timeout")
         self._pairing_task = None
+        if not self._paired:
+            return self.async_show_progress_done(next_step_id="pairing_timeout")
         return self.async_show_progress_done(next_step_id="pairing_complete")
 
     async def async_step_pairing_complete(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Create a configuration entry for a device that entered pairing mode."""
         assert self._discovery_info
         model_name = self._discovery_info.name
@@ -151,66 +150,57 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_pairing_timeout(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Inform the user that the device never entered pairing mode."""
         if user_input is not None:
+            self._pairing_task = None
             return await self.async_step_wait_for_pairing_mode()
 
         self._set_confirm_only()
         return self.async_show_form(step_id="pairing_timeout")
 
-    def _create_ooler_entry(self, model_name: str) -> FlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration to re-verify the BLE connection."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert entry is not None
+
+        if user_input is not None:
+            address = entry.unique_id
+            assert address is not None
+            discovery_info = async_last_service_info(
+                self.hass, address, connectable=True
+            )
+            if discovery_info is None:
+                return self.async_abort(reason="no_devices_found")
+            self._discovery_info = discovery_info
+            return await self.async_step_wait_for_pairing_mode()
+
+        return self.async_show_form(step_id="reconfigure")
+
+    def _create_ooler_entry(self, model_name: str) -> ConfigFlowResult:
         return self.async_create_entry(
             title=model_name,
-            data={CONF_MODEL: model_name},  # could require discovery_info.name instead
+            data={CONF_MODEL: model_name},
         )
 
-    # async def _async_wait_for_pairing_mode(self) -> None:
-    #     """Process advertisements until pairing mode is detected."""
-    #     in_pairing_mode: Future[bool] = Future()
-
-    #     async def device_in_pairing_mode(
-    #         device: BLEDevice,
-    #         advertisement_data: AdvertisementData,
-    #     ):
-    #         assert self._discovery_info is not None
-    #         if device.address == self._discovery_info.address:
-    #             in_pairing_mode.set_result(True)
-
-    #     pairing_scanner = BleakScanner(
-    #         device_in_pairing_mode,
-    #         scanning_mode="passive",
-    #         bluez=BlueZScannerArgs(
-    #             or_patterns=[OrPattern(0, AdvertisementDataType.FLAGS, b"\x02")]
-    #         ),
-    #     )
-
-    #     try:
-    #         _LOGGER.error("Starting Ooler scanner")
-    #         result = await pairing_scanner.start()
-    #         _LOGGER.error("Result of scanner start is: %s", result)
-    #         await asyncio.sleep(ADDITIONAL_DISCOVERY_TIMEOUT)
-    #         # _LOGGER.error("Scanner: ", pairing_scanner)
-    #         _LOGGER.error("Stopping Ooler scanner")
-    #         await pairing_scanner.stop()
-    #         raise asyncio.TimeoutError
-
-    #     finally:
-    #         self.hass.async_create_task(
-    #             self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
-    #         )
-
-    async def _async_check_ooler_connection(self, bledevice: BLEDevice) -> None:
-        """Try to connect to client and test read and write power functions."""
-        await asyncio.sleep(5)
-        assert self._pairing_task is not None
+    async def _async_verify_connection(
+        self, discovery_info: BluetoothServiceInfoBleak
+    ) -> None:
+        """Connect to the device and verify GATT access by reading state."""
+        client = OolerBLEDevice(model=discovery_info.name)
+        client.set_ble_device(discovery_info.device)
         try:
-            await test_connection(bledevice)
-        except Exception:  # pylint: disable=broad-except
-            self._pairing_task.cancel()
-        else:
+            await client.connect()
+            await client.async_poll()
             self._paired = True
-        finally:
-            self.hass.async_create_task(
-                self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
+            _LOGGER.debug("Connection verified for %s", discovery_info.address)
+        except (BleakError, TimeoutError):
+            _LOGGER.debug(
+                "Connection verification failed for %s",
+                discovery_info.address,
+                exc_info=True,
             )
+        finally:
+            await client.stop()

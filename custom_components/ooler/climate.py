@@ -2,54 +2,47 @@
 
 from __future__ import annotations
 
-from asyncio import sleep
-from typing import Any
+from typing import Any, Literal, cast
 
-from homeassistant.components.climate import (
-    ClimateEntity,
+from homeassistant.components.climate import ClimateEntity
+from homeassistant.components.climate.const import (
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_TEMPERATURE,
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import _LOGGER, DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
-from .models import OolerData
+from . import OolerConfigEntry
+from .const import (
+    _LOGGER,
+    DEFAULT_MAX_TEMP_C,
+    DEFAULT_MAX_TEMP_F,
+    DEFAULT_MIN_TEMP_C,
+    DEFAULT_MIN_TEMP_F,
+)
+from .coordinator import OolerCoordinator
+from .entity import OolerEntity
 
-IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
-
-SERVICE_PAUSE = "pause_service"
+PARALLEL_UPDATES = 1
 SERVICE_CLEAN = "clean_service"
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: OolerConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler thermostat."""
-    data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
-    entities = [Ooler(data)]
-    async_add_entities(entities)
+    coordinator = config_entry.runtime_data
+    async_add_entities([Ooler(coordinator)])
     platform = entity_platform.async_get_current_platform()
 
-    platform.async_register_entity_service(
-        SERVICE_PAUSE,
-        {},
-        "async_pause_client",
-    )
     platform.async_register_entity_service(
         SERVICE_CLEAN,
         {},
@@ -57,15 +50,11 @@ async def async_setup_entry(
     )
 
 
-class Ooler(ClimateEntity, RestoreEntity):
+class Ooler(OolerEntity, ClimateEntity):
     """Representation of Ooler Thermostat."""
 
-    _attr_has_entity_name = True
     _attr_name = None
-    _attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
     _attr_target_temperature_step = 1
-    _attr_min_temp = DEFAULT_MIN_TEMP
-    _attr_max_temp = DEFAULT_MAX_TEMP
 
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
@@ -73,63 +62,49 @@ class Ooler(ClimateEntity, RestoreEntity):
         | ClimateEntityFeature.TURN_OFF
         | ClimateEntityFeature.TURN_ON
     )
-    _enable_turn_on_off_backwards_compatibility = False
 
-    def __init__(self, data: OolerData) -> None:
+    def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the climate entity."""
-        self._data = data
-        self._attr_unique_id = f"ooler_{data.address}_thermostat"
-        self._attr_device_info = DeviceInfo(
-            name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
-        )
+        super().__init__(coordinator)
+        self._attr_unique_id = f"ooler_{coordinator.address}_thermostat"
         self._operation_list: list[HVACMode] = [HVACMode.OFF, HVACMode.AUTO]
         self._fan_modes: list[str] = ["Silent", "Regular", "Boost"]
-        super().__init__()
-
-    @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
-
-    @property
-    def available(self) -> bool:
-        """Determine if the entity is available."""
-        return self._data.client.is_connected
 
     @property
     def temperature_unit(self) -> str:
-        """Return temperature unit."""
-        return self._attr_temperature_unit
+        """Return temperature unit based on device setting."""
+        if self.coordinator.client.state.temperature_unit == "C":
+            return UnitOfTemperature.CELSIUS
+        return UnitOfTemperature.FAHRENHEIT
 
     @property
     def min_temp(self) -> float:
         """Return the minimum target temperature."""
-        return self._attr_min_temp
+        if self.coordinator.client.state.temperature_unit == "C":
+            return DEFAULT_MIN_TEMP_C
+        return DEFAULT_MIN_TEMP_F
 
     @property
     def max_temp(self) -> float:
         """Return the maximum target temperature."""
-        return self._attr_max_temp
-
-    @property
-    def target_temperature_step(self) -> float | None:
-        """Return the supported step of target temperature."""
-        return self._attr_target_temperature_step
+        if self.coordinator.client.state.temperature_unit == "C":
+            return DEFAULT_MAX_TEMP_C
+        return DEFAULT_MAX_TEMP_F
 
     @property
     def target_temperature(self) -> int | None:
         """Return the temperature we try to reach."""
-        return self._data.client.state.set_temperature
+        return self.coordinator.client.state.set_temperature
 
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        return self._data.client.state.actual_temperature
+        return self.coordinator.client.state.actual_temperature
 
     @property
     def fan_mode(self) -> str | None:
         """Return the fan setting."""
-        return self._data.client.state.mode
+        return self.coordinator.client.state.mode
 
     @property
     def fan_modes(self) -> list[str] | None:
@@ -139,7 +114,7 @@ class Ooler(ClimateEntity, RestoreEntity):
     @property
     def hvac_mode(self) -> HVACMode | None:
         """Return current operation."""
-        if self._data.client.state.power:
+        if self.coordinator.client.state.power:
             return HVACMode.AUTO
         return HVACMode.OFF
 
@@ -169,52 +144,64 @@ class Ooler(ClimateEntity, RestoreEntity):
         return self._attr_supported_features
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return sleep schedule details as extra state attributes."""
+        schedule = self.coordinator.client.sleep_schedule
+        if schedule is None or not schedule.nights:
+            return None
+        day_names = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ]
+        nights = []
+        for night in schedule.nights:
+            night_dict: dict[str, Any] = {
+                "day": day_names[night.day],
+                "bedtime": night.temps[0][0].strftime("%H:%M") if night.temps else None,
+                "off_time": night.off_time.strftime("%H:%M"),
+                "temps": [
+                    {"time": t.strftime("%H:%M"), "temp_f": temp}
+                    for t, temp in night.temps
+                ],
+            }
+            if night.warm_wake is not None:
+                night_dict["warm_wake"] = {
+                    "target_temp_f": night.warm_wake.target_temp_f,
+                    "duration_min": night.warm_wake.duration_min,
+                }
+            nights.append(night_dict)
+        return {
+            "sleep_schedule_days": [day_names[n.day] for n in schedule.nights],
+            "sleep_schedule_nights": nights,
+        }
+
+    @property
     def cleaning(self) -> bool | None:
         """Return if the unit is cleaning itself."""
-        return self._data.client.state.clean
-
-    @callback
-    def _handle_state_update(self, *args: Any) -> None:
-        """Handle state update."""
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """Restore state on start up and register callback."""
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._data.client.register_callback(self._handle_state_update)
-        )
-
-    # async def async_update(self) -> None:
-    #     """Grab the state from device and update HA."""
-    #     await self._data.client.async_poll()
-    #     self._async_write_ha_state()
+        return self.coordinator.client.state.clean
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
+        await self.coordinator.async_ensure_connected()
         power = hvac_mode != HVACMode.OFF
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_power(power)
-        _LOGGER.debug("Setting HVACMode to: %s", hvac_mode)
+        await self.coordinator.client.set_power(power)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
         if fan_mode not in self._fan_modes:
-            error = (
-                "Invalid fan_mode value: "
-                "Valid values are 'Silent', 'Regular', and 'Boost'"
+            _LOGGER.error(
+                "Invalid fan_mode value: Valid values are 'Silent', 'Regular', 'Boost'"
             )
-            _LOGGER.error(error)
             return
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_mode(fan_mode)
-        _LOGGER.debug("Setting fan mode to: %s", fan_mode)
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_mode(
+            cast("Literal['Silent', 'Regular', 'Boost']", fan_mode)
+        )
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -223,27 +210,10 @@ class Ooler(ClimateEntity, RestoreEntity):
             raise ValueError("No target temperature provided.")
         if temp == self.target_temperature:
             return
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_temperature(int(temp))
-        _LOGGER.debug("Setting temperature to :%s", temp)
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_temperature(int(temp))
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(True)
-        _LOGGER.debug("Cleaning the device: %s", self.name)
-
-    # This service function is necessary because the Bluetooth connection is active,
-    # which means when Hass is connected to Ooler, nothing else can connect to Ooler
-    # including the phone app.
-    async def async_pause_client(self, sec_delay: int = 60) -> None:
-        """Disconnect Hass from the device."""
-        await self._data.client.stop()
-        await sleep(sec_delay)
-        await self._data.client.connect()
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_clean(True)

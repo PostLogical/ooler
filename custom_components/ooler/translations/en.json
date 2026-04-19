@@ -1,28 +1,55 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Device is already configured",
-            "already_in_progress": "Configuration flow is already in progress",
-            "no_devices_found": "No devices found on the network",
-            "not_supported": "Device not supported"
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "data": {
+          "address": "Device"
         },
-        "flow_title": "{name}",
-        "progress": {
-            "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit Ooler mobile apps.\n2. Press and hold the power button on the device. Release when the bluetooth icon starts blinking (approximately 5 seconds)."
-        },
-        "step": {
-            "bluetooth_confirm": {
-                "description": "Do you want to set up {name}?"
-            },
-            "pairing_timeout": {
-                "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device isn't connected to the mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
-            },
-            "user": {
-                "data": {
-                    "address": "Device"
-                },
-                "description": "Choose a device to set up"
-            }
-        }
+        "description": "Choose a device to set up"
+      },
+      "bluetooth_confirm": {
+        "description": "Do you want to set up {name}?"
+      },
+      "reconfigure": {
+        "description": "Re-verify the Bluetooth connection to this Ooler device. Click Submit to start."
+      },
+      "pairing_timeout": {
+        "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device is not connected to the Ooler mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
+      }
+    },
+    "progress": {
+      "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit the Ooler mobile app.\n2. Press and hold the power button on the device. Release when the Bluetooth icon starts blinking (approximately 5 seconds)."
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "already_in_progress": "Configuration flow is already in progress",
+      "no_devices_found": "No devices found",
+      "not_supported": "Device not supported"
     }
+  },
+  "entity": {
+    "sensor": {
+      "water_level": {
+        "name": "Water Level"
+      }
+    },
+    "switch": {
+      "cleaning": {
+        "name": "Cleaning"
+      },
+      "sleep_schedule": {
+        "name": "Sleep Schedule"
+      },
+      "bluetooth_connection": {
+        "name": "Bluetooth Connection"
+      }
+    }
+  },
+  "services": {
+    "clean_service": {
+      "name": "Clean",
+      "description": "Activates the UV light to clean the Ooler water system."
+    }
+  }
 }

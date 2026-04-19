@@ -11,18 +11,135 @@
       "bluetooth_confirm": {
         "description": "[%key:component::bluetooth::config::step::bluetooth_confirm::description%]"
       },
+      "reconfigure": {
+        "description": "Re-verify the Bluetooth connection to this Ooler device. Click Submit to start."
+      },
       "pairing_timeout": {
-        "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device isn't connected to the mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
+        "description": "The device did not enter pairing mode. Click Submit to try again.\n\n### Troubleshooting\n1. Check that the device is not connected to the Ooler mobile app.\n2. Unplug the device for 5 seconds, then plug it back in."
       }
     },
     "progress": {
-      "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit Ooler mobile apps.\n2. Press and hold the power button on the device. Release when the bluetooth icon starts blinking (approximately 5 seconds)."
+      "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit the Ooler mobile app.\n2. Press and hold the power button on the device. Release when the Bluetooth icon starts blinking (approximately 5 seconds)."
     },
     "abort": {
       "not_supported": "Device not supported",
       "no_devices_found": "[%key:common::config_flow::abort::no_devices_found%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "entity": {
+    "select": {
+      "saved_schedule": {
+        "name": "Saved Schedule"
+      }
+    },
+    "sensor": {
+      "water_level": {
+        "name": "Water Level"
+      },
+      "schedule_tonight": {
+        "name": "Schedule Tonight"
+      }
+    },
+    "switch": {
+      "cleaning": {
+        "name": "Cleaning"
+      },
+      "sleep_schedule": {
+        "name": "Sleep Schedule"
+      },
+      "bluetooth_connection": {
+        "name": "Bluetooth Connection"
+      }
+    }
+  },
+  "exceptions": {
+    "connect_failed": {
+      "message": "Failed to connect to Ooler {address}"
+    },
+    "no_cached_schedule": {
+      "message": "No cached sleep schedule to enable"
+    },
+    "no_active_schedule": {
+      "message": "No active schedule on device to save"
+    },
+    "schedule_not_found": {
+      "message": "No saved schedule named \"{name}\""
+    },
+    "device_not_found": {
+      "message": "No Ooler device found for the given target"
+    },
+    "invalid_time_format": {
+      "message": "Invalid time format {value}, expected HH:MM"
+    },
+    "invalid_time": {
+      "message": "Invalid time {value}"
+    },
+    "missing_days": {
+      "message": "Each night entry must have a \"days\" list"
+    },
+    "missing_times": {
+      "message": "Each night entry must have \"bedtime\" and \"off_time\""
+    },
+    "missing_temperature": {
+      "message": "Each night must have \"temperature\" or \"temps\""
+    },
+    "invalid_day": {
+      "message": "Invalid day {day}, must be 0-6 (Monday-Sunday)"
+    },
+    "schedule_write_failed": {
+      "message": "{error}"
+    }
+  },
+  "services": {
+    "clean_service": {
+      "name": "Clean",
+      "description": "Activates the UV light to clean the Ooler water system."
+    },
+    "get_schedule": {
+      "name": "Get schedule",
+      "description": "Return the current device schedule in set_schedule format."
+    },
+    "save_schedule": {
+      "name": "Save schedule",
+      "description": "Save the current device schedule with a name for later use.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "A name for this schedule (e.g., \"weekday\", \"vacation\")."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Delete schedule",
+      "description": "Delete a previously saved schedule.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to delete."
+        }
+      }
+    },
+    "load_schedule": {
+      "name": "Load schedule",
+      "description": "Write a previously saved schedule to the device.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to load."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Write a schedule directly to the device.",
+      "fields": {
+        "nights": {
+          "name": "Nights",
+          "description": "List of night definitions with days, bedtime, off_time, temperature/temps, and optional warm_wake."
+        }
+      }
     }
   }
 }

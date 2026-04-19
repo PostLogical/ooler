@@ -2,71 +2,51 @@
 
 from __future__ import annotations
 
-from homeassistant.components.bluetooth import (
-    BluetoothChange,
-    BluetoothScanningMode,
-    BluetoothServiceInfoBleak,
-    async_register_callback,
-)
-from homeassistant.components.bluetooth.match import ADDRESS
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
-from homeassistant.core import Event, HomeAssistant, callback
-from ooler_ble_client import OolerBLEDevice
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
 
-from .const import CONF_MODEL, DOMAIN
-from .models import OolerData
+from .coordinator import OolerCoordinator
+from .services import async_register_services, async_unregister_services
 
-PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.CLIMATE,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
+
+type OolerConfigEntry = ConfigEntry[OolerCoordinator]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> bool:
     """Set up Ooler from a config entry."""
-    address = entry.unique_id
-    assert address is not None
+    coordinator = OolerCoordinator(hass, entry)
+    cleanups = await coordinator.async_start()
+    for cleanup in cleanups:
+        entry.async_on_unload(cleanup)
 
-    model = entry.data[CONF_MODEL]
-    client = OolerBLEDevice(model=model)
+    entry.runtime_data = coordinator
 
-    @callback
-    def _async_update_ble(
-        service_info: BluetoothServiceInfoBleak,
-        change: BluetoothChange,
-    ) -> None:
-        """Update from a ble callback."""
-        client.set_ble_device(service_info.device)
-        hass.async_create_task(client.connect())
-
-    entry.async_on_unload(
-        async_register_callback(
-            hass,
-            _async_update_ble,
-            {ADDRESS: address},
-            BluetoothScanningMode.ACTIVE,
-        )
-    )
-
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = OolerData(
-        address,
-        model,
-        client,
-    )
+    async_register_services(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    async def _async_stop(event: Event) -> None:
-        """Close the connection."""
-        await client.stop()
-
-    entry.async_on_unload(
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_stop)
-    )
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: OolerConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+    await entry.runtime_data.async_stop()
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    return unload_ok
+    # Only unregister services if this is the last Ooler config entry
+    if unloaded:
+        remaining = [
+            e
+            for e in hass.config_entries.async_entries("ooler")
+            if e.entry_id != entry.entry_id
+        ]
+        if not remaining:
+            async_unregister_services(hass)
+
+    return unloaded

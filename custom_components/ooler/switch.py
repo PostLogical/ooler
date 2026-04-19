@@ -5,141 +5,128 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import _LOGGER, DOMAIN
-from .models import OolerData
+from . import OolerConfigEntry
+from .coordinator import OolerCoordinator
+from .entity import OolerEntity
+
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: OolerConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Ooler switches."""
-    data: OolerData = hass.data[DOMAIN][config_entry.entry_id]
-    entities = [
-        OolerCleaningSwitch(data),
-        OolerConnectionSwitch(data),
-    ]
-    async_add_entities(entities)
+    coordinator = config_entry.runtime_data
+    async_add_entities(
+        [
+            OolerCleaningSwitch(coordinator),
+            OolerSleepScheduleSwitch(coordinator),
+            OolerConnectionSwitch(coordinator),
+        ]
+    )
 
 
-class OolerCleaningSwitch(SwitchEntity):
+class OolerCleaningSwitch(OolerEntity, SwitchEntity):
     """Representation of Ooler Cleaning switch."""
 
-    _attr_has_entity_name = True
+    _attr_translation_key = "cleaning"
 
-    def __init__(self, data: OolerData) -> None:
+    def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
-        self._data = data
-        self._attr_name = "Cleaning"
-        self._attr_unique_id = f"{data.address}_cleaning_binary_sensor"
-        self._attr_device_info = DeviceInfo(
-            name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
-        )
-
-    @property
-    def available(self) -> bool:
-        """Determine if the entity is available."""
-        return self._data.client.is_connected
-
-    @callback
-    def _handle_state_update(self, *args: Any) -> None:
-        """Handle state update."""
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """Determine state on start up and register callback."""
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._data.client.register_callback(self._handle_state_update)
-        )
-
-    @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_cleaning_binary_sensor"
 
     @property
     def is_on(self) -> bool | None:
         """Return true if the device is cleaning."""
-        return self._data.client.state.clean
+        if self.coordinator.client.state is not None:
+            return self.coordinator.client.state.clean
+        return None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(True)
-        _LOGGER.debug("Cleaning the device: %s", self.name)
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_clean(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Start cleaning the unit."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
-        await client.set_clean(False)
-        _LOGGER.debug("Stopping cleaning process: %s", self.name)
+        """Stop cleaning the unit."""
+        await self.coordinator.async_ensure_connected()
+        await self.coordinator.client.set_clean(False)
 
 
-class OolerConnectionSwitch(SwitchEntity):
+class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
+    """Representation of Ooler sleep schedule toggle."""
+
+    _attr_translation_key = "sleep_schedule"
+
+    def __init__(self, coordinator: OolerCoordinator) -> None:
+        """Initialize the switch entity."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_sleep_schedule"
+
+    @property
+    def available(self) -> bool:
+        """
+        Return whether the switch is available.
+
+        Unavailable when disconnected or when there is no schedule to toggle
+        (no active schedule and no cached schedule to re-enable).
+        """
+        if not self.coordinator.is_connected:
+            return False
+        return (
+            self.coordinator.sleep_schedule_active
+            or self.coordinator.cached_sleep_schedule is not None
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if a sleep schedule is active on the device."""
+        return self.coordinator.sleep_schedule_active
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable the cached sleep schedule on the device."""
+        await self.coordinator.async_enable_sleep_schedule()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable the sleep schedule on the device."""
+        await self.coordinator.async_disable_sleep_schedule()
+
+
+class OolerConnectionSwitch(OolerEntity, SwitchEntity):
     """Representation of Ooler bluetooth connection switch."""
 
-    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "bluetooth_connection"
 
-    def __init__(self, data: OolerData) -> None:
+    def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
-        self._data = data
-        self._attr_name = "Bluetooth Connection"
-        self._attr_unique_id = f"{data.address}_connection_binary_sensor"
-        self._attr_device_info = DeviceInfo(
-            name=data.model, connections={(dr.CONNECTION_BLUETOOTH, data.address)}
-        )
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_connection_binary_sensor"
 
     @property
     def available(self) -> bool:
         """This switch controls availability, so always return true."""
         return True
 
-    @callback
-    def _handle_state_update(self, *args: Any) -> None:
-        """Handle state update."""
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """Determine state on start up and register callback."""
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._data.client.register_callback(self._handle_state_update)
-        )
-
     @property
-    def name(self) -> str | None:
-        """Return entity name."""
-        return self._attr_name
-
-    @property
-    def is_on(self) -> bool | None:
+    def is_on(self) -> bool:
         """Return true if the device is connected."""
-        return self._data.client.state.connected
+        return self.coordinator.client.is_connected
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Connect to the device."""
-        client = self._data.client
-        if not client.is_connected:
-            _LOGGER.debug("Client not connected. Attempting to connect")
-            await client.connect()
+        self.coordinator.connection_enabled = True
+        await self.coordinator.async_ensure_connected()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Disconnect from the device."""
-        client = self._data.client
-        if client.is_connected:
-            _LOGGER.debug("Client is connected. Attempting to disconnect")
-            await client.stop()
+        """Disconnect from the device and suppress auto-reconnect."""
+        self.coordinator.connection_enabled = False
+        if self.coordinator.client.is_connected:
+            await self.coordinator.client.stop()

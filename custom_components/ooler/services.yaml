@@ -1,27 +1,84 @@
-pause_service:
-  name: Pause Ooler Connection
-  description: Disconnect bluetooth connection to Ooler for x seconds allowing other controllers to access.
-  target:
-   entity:
-    integration: ooler
-    domain: climate
-  fields:
-    sec_delay:
-      name: Seconds delay
-      description: How long to delay in seconds before re-connecting
-      required: false
-      example: 60
-      default: 60
-      selector:
-        number:
-          min: 0
-          max: 1200
-          mode: box
-
 clean_service:
   name: Clean Ooler
-  description: Turns on UV light to clean the Ooler.
+  description: Activates the UV light to clean the Ooler water system.
   target:
-   entity:
-    integration: ooler
-    domain: climate
+    entity:
+      integration: ooler
+      domain: climate
+
+get_schedule:
+  name: Get schedule
+  description: >-
+    Return the current device schedule in the same format accepted by
+    set_schedule, so you can inspect it or use it as a template.
+  target:
+    entity:
+      integration: ooler
+
+save_schedule:
+  name: Save schedule
+  description: Save the current device schedule with a name for later use.
+  target:
+    entity:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: A name for this schedule (e.g., "weekday", "vacation").
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+delete_schedule:
+  name: Delete schedule
+  description: Delete a previously saved schedule.
+  target:
+    entity:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: The name of the saved schedule to delete.
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+load_schedule:
+  name: Load schedule
+  description: Write a previously saved schedule to the device.
+  target:
+    entity:
+      integration: ooler
+  fields:
+    name:
+      name: Name
+      description: The name of the saved schedule to load.
+      required: true
+      example: "weekday"
+      selector:
+        text:
+
+set_schedule:
+  name: Set schedule
+  description: >-
+    Write a schedule directly to the device. Each entry in "nights" defines a
+    temperature program that is replicated across the listed days. Use
+    "temperature" for a single bedtime temp, or "temps" for multiple mid-night
+    temperature changes.
+  target:
+    entity:
+      integration: ooler
+  fields:
+    nights:
+      name: Nights
+      description: >-
+        List of night definitions. Each has "days" (list of day numbers,
+        0=Monday through 6=Sunday), "bedtime", "off_time", and either
+        "temperature" (single value) or "temps" (list of {time, temperature}
+        for mid-night changes). Optional "warm_wake" with "temperature" and
+        "duration".
+      required: true
+      selector:
+        object:
