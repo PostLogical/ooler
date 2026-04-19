@@ -54,7 +54,7 @@ The Dock Pro (Ooler's successor) uses a cloud API and is not supported by this i
 
 ### Sleep schedules
 
-The integration reads and writes sleep schedules directly on the Ooler device. Schedules define per-night temperature programs with bedtime, off-time, and optional mid-night temperature changes and warm wake ramps.
+The integration reads and writes sleep schedules directly on the Ooler device. Schedules define per-night temperature programs with bedtime, off-time, and optional mid-night temperature changes and warm wake ramps. If you are only using Home Assistant with your Ooler, then it may be easier to implement your schedule as an automation in HA rather than use the built-in sleep schedule functionality, but if you want to keep using the functionality like in the Ooler app or care about it being built in to the device, then here you go.
 
 **The easiest way to get started** is to create a schedule in the Ooler app first, then use `ooler.save_schedule` in HA to save it with a name (e.g., "weekday"). The app only supports applying the same schedule to every day it covers, but once the schedule is on the device, HA can read and save it for later use. You can also use `ooler.get_schedule` to read the device schedule, edit it manually (e.g., to add per-night variation or warm wake ramps), and write it back with `ooler.set_schedule`.
 
@@ -193,9 +193,11 @@ ESPHome Bluetooth proxies can occasionally drop BLE notification subscriptions w
 
 ### HACS
 
-1. Find the integration as `Ooler`
-2. Click install.
-3. Restart Home Assistant.
+1. Open HACS in your Home Assistant instance.
+2. Click the three-dot menu in the top right and select "Custom repositories".
+3. Add `https://github.com/PostLogical/ooler` with category "Integration".
+4. Find the integration as `Ooler` and click install.
+5. Restart Home Assistant.
 
 ### Manual
 

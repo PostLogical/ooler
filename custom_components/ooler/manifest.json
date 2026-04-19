@@ -21,5 +21,5 @@
   "requirements": [
     "ooler_ble_client==0.11.1"
   ],
-  "version": "2026.3.7b9"
+  "version": "2026.4.0"
 }
