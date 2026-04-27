@@ -1131,6 +1131,71 @@ async def test_coordinator_active_saved_name_property() -> None:
     assert coordinator.active_saved_name == "test"
 
 
+async def test_coordinator_enable_identifies_saved_name() -> None:
+    """Test enabling schedule identifies matching saved schedule name."""
+    coordinator, _client = make_coordinator()
+    schedule = make_mock_schedule()
+    coordinator._cached_sleep_schedule = schedule
+    coordinator._saved_schedules = {"weekday": schedule}
+
+    await coordinator.async_enable_sleep_schedule()
+
+    assert coordinator._active_saved_name == "weekday"
+
+
+async def test_coordinator_disable_keeps_saved_name_from_cache() -> None:
+    """Test disabling schedule identifies saved name from cached schedule."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.sleep_schedule = schedule
+    coordinator._saved_schedules = {"weekday": schedule}
+    coordinator._active_saved_name = "weekday"
+
+    await coordinator.async_disable_sleep_schedule()
+
+    assert coordinator._active_saved_name == "weekday"
+
+
+async def test_coordinator_write_schedule_identifies_saved_name() -> None:
+    """Test writing a schedule that matches a saved one sets active name."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    coordinator._saved_schedules = {"weekday": schedule}
+    client.sleep_schedule = schedule
+
+    await coordinator.async_write_sleep_schedule(schedule.nights)
+
+    assert coordinator._active_saved_name == "weekday"
+
+
+async def test_coordinator_post_connect_identifies_saved_name() -> None:
+    """Test post-connect identifies saved schedule name when none is set."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    client.read_sleep_schedule = AsyncMock(return_value=schedule)
+    coordinator._saved_schedules = {"weekday": schedule}
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._active_saved_name == "weekday"
+
+
+async def test_coordinator_post_connect_preserves_saved_name_from_cache() -> None:
+    """Test post-connect keeps saved name when device is empty but cache matches."""
+    coordinator, client = make_coordinator()
+    schedule = make_mock_schedule()
+    empty_schedule = MagicMock()
+    empty_schedule.nights = []
+    client.read_sleep_schedule = AsyncMock(return_value=empty_schedule)
+    coordinator._cached_sleep_schedule = schedule
+    coordinator._saved_schedules = {"weekday": schedule}
+    coordinator._active_saved_name = "weekday"
+
+    await coordinator._async_post_connect()
+
+    assert coordinator._active_saved_name == "weekday"
+
+
 async def test_coordinator_async_start_loads_store(
     hass: HomeAssistant,
 ) -> None:
