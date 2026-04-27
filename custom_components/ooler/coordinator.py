@@ -272,7 +272,11 @@ class OolerCoordinator:
             schedule = await self.client.read_sleep_schedule()
             if schedule.nights:
                 self._cached_sleep_schedule = schedule
-            self._validate_active_saved_name(schedule)
+            # Validate against device schedule if active, else cached schedule
+            validate_against = (
+                schedule if schedule.nights else self._cached_sleep_schedule or schedule
+            )
+            self._validate_active_saved_name(validate_against)
         except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Failed to read sleep schedule from Ooler %s",
@@ -417,6 +421,7 @@ class OolerCoordinator:
             )
         await self.async_ensure_connected()
         await self.client.set_sleep_schedule(self._cached_sleep_schedule.nights)
+        self._validate_active_saved_name(self._cached_sleep_schedule)
         self._async_notify_listeners()
 
     async def async_disable_sleep_schedule(self) -> None:
@@ -425,7 +430,10 @@ class OolerCoordinator:
             self._cached_sleep_schedule = self.client.sleep_schedule
         await self.async_ensure_connected()
         await self.client.clear_sleep_schedule()
+        # Identify saved name from cache so dropdown shows what will re-enable
         self._active_saved_name = None
+        if self._cached_sleep_schedule is not None:
+            self._validate_active_saved_name(self._cached_sleep_schedule)
         self._async_notify_listeners()
 
     async def async_write_sleep_schedule(
@@ -436,6 +444,8 @@ class OolerCoordinator:
         await self.client.set_sleep_schedule(nights)
         self._cached_sleep_schedule = self.client.sleep_schedule
         self._active_saved_name = None
+        if self._cached_sleep_schedule is not None:
+            self._validate_active_saved_name(self._cached_sleep_schedule)
         self._async_notify_listeners()
 
     # --- Schedule storage ---
@@ -451,12 +461,21 @@ class OolerCoordinator:
         return self._active_saved_name
 
     def _validate_active_saved_name(self, schedule: OolerSleepSchedule) -> None:
-        """Clear active_saved_name if the device schedule no longer matches."""
-        if self._active_saved_name is None:
+        """Clear active_saved_name if stale, or identify it from saved schedules."""
+        if self._active_saved_name is not None:
+            saved = self._saved_schedules.get(self._active_saved_name)
+            if saved is None or saved.nights != schedule.nights:
+                self._active_saved_name = None
+            else:
+                return
+        # Try to identify which saved schedule matches the device schedule
+        if not schedule.nights:
             return
-        saved = self._saved_schedules.get(self._active_saved_name)
-        if saved is None or saved.nights != schedule.nights:
-            self._active_saved_name = None
+        for name, saved in self._saved_schedules.items():
+            if saved.nights == schedule.nights:
+                self._active_saved_name = name
+                return
+                return
 
     @property
     def tonight_schedule(self) -> SleepScheduleNight | None:
