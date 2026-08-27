@@ -49,5 +49,6 @@ async def async_get_config_entry_diagnostics(
         "connection_events": {
             "last_subscription_mismatch": coordinator.last_subscription_mismatch,
             "forced_reconnect_counts": dict(coordinator.forced_reconnect_counts),
+            "stuck_setpoint": coordinator.stuck_setpoint_diagnostics,
         },
     }

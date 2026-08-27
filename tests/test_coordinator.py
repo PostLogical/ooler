@@ -10,6 +10,7 @@ import pytest
 from bleak.exc import BleakError
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import (
     ConnectionEvent,
@@ -18,6 +19,7 @@ from ooler_ble_client import (
     SleepScheduleNight,
 )
 
+from custom_components.ooler.const import DOMAIN
 from custom_components.ooler.coordinator import (
     CLOCK_SYNC_INTERVAL,
     OolerCoordinator,
@@ -1334,3 +1336,123 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
         "subscription_mismatch": 2,
         "poll_failure": 1,
     }
+
+
+async def test_connection_event_stuck_setpoint_detected_repaired(
+    hass: HomeAssistant,
+) -> None:
+    """Test STUCK_SETPOINT_DETECTED with repaired=True counts a repair."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.STUCK_SETPOINT_DETECTED,
+        timestamp=0.0,
+        detail={"wanted": 62, "stuck_at": 45, "repaired": True},
+    )
+    coordinator._async_on_connection_event(event)
+
+    diag = coordinator.stuck_setpoint_diagnostics
+    assert diag["detections"] == 1
+    assert diag["repairs"] == 1
+    assert diag["last_detection"]["wanted"] == 62
+    assert diag["last_detection"]["stuck_at"] == 45
+    assert diag["last_detection"]["repaired"] is True
+    assert "timestamp" in diag["last_detection"]
+
+
+async def test_connection_event_stuck_setpoint_detected_not_repaired(
+    hass: HomeAssistant,
+) -> None:
+    """Test STUCK_SETPOINT_DETECTED with repaired=False counts no repair."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.STUCK_SETPOINT_DETECTED,
+        timestamp=0.0,
+        detail={"wanted": 62, "stuck_at": 120, "repaired": False},
+    )
+    coordinator._async_on_connection_event(event)
+
+    diag = coordinator.stuck_setpoint_diagnostics
+    assert diag["detections"] == 1
+    assert diag["repairs"] == 0
+    assert diag["last_detection"]["repaired"] is False
+
+
+async def test_connection_event_stuck_setpoint_unfixable(
+    hass: HomeAssistant,
+) -> None:
+    """Test STUCK_SETPOINT_UNFIXABLE records info and raises a repair issue."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    event = ConnectionEvent(
+        type=ConnectionEventType.STUCK_SETPOINT_UNFIXABLE,
+        timestamp=0.0,
+        detail={"consecutive": 3},
+    )
+    coordinator._async_on_connection_event(event)
+
+    diag = coordinator.stuck_setpoint_diagnostics
+    assert diag["last_unfixable"]["consecutive"] == 3
+    assert "timestamp" in diag["last_unfixable"]
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, f"stuck_setpoint_{OOLER_ADDRESS}"
+    )
+    assert issue is not None
+    assert issue.translation_key == "stuck_setpoint_unfixable"
+    assert issue.translation_placeholders == {"address": OOLER_ADDRESS}
+
+
+async def test_connection_event_stuck_setpoint_recovered(
+    hass: HomeAssistant,
+) -> None:
+    """Test STUCK_SETPOINT_RECOVERED clears a raised issue and counts recovery."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    registry = ir.async_get(hass)
+    issue_id = f"stuck_setpoint_{OOLER_ADDRESS}"
+
+    coordinator._async_on_connection_event(
+        ConnectionEvent(
+            type=ConnectionEventType.STUCK_SETPOINT_UNFIXABLE,
+            timestamp=0.0,
+            detail={"consecutive": 3},
+        )
+    )
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+
+    coordinator._async_on_connection_event(
+        ConnectionEvent(
+            type=ConnectionEventType.STUCK_SETPOINT_RECOVERED,
+            timestamp=0.0,
+            detail={"after": 3},
+        )
+    )
+
+    assert coordinator.stuck_setpoint_diagnostics["recoveries"] == 1
+    assert registry.async_get_issue(DOMAIN, issue_id) is None

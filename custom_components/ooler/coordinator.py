@@ -20,6 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util.unit_system import METRIC_SYSTEM
@@ -125,6 +126,15 @@ class OolerCoordinator:
 
         self._last_subscription_mismatch: dict[str, Any] | None = None
         self._forced_reconnect_counts: dict[str, int] = {}
+
+        # Stuck-setpoint firmware bug tracking (see _async_on_connection_event).
+        # These counters are the only field signal for whether the library's
+        # automatic detection fires correctly, so surface them in diagnostics.
+        self._stuck_setpoint_detections: int = 0
+        self._stuck_setpoint_repairs: int = 0
+        self._stuck_setpoint_recoveries: int = 0
+        self._last_stuck_setpoint_detection: dict[str, Any] | None = None
+        self._last_stuck_setpoint_unfixable: dict[str, Any] | None = None
 
         self._store: Store[dict[str, Any]] = Store(
             hass,
@@ -347,6 +357,70 @@ class OolerCoordinator:
             self._forced_reconnect_counts[trigger] = (
                 self._forced_reconnect_counts.get(trigger, 0) + 1
             )
+        elif event.type is ConnectionEventType.STUCK_SETPOINT_DETECTED:
+            assert event.detail is not None
+            self._stuck_setpoint_detections += 1
+            if event.detail["repaired"]:
+                self._stuck_setpoint_repairs += 1
+                _LOGGER.info(
+                    "Ooler %s: repaired stuck setpoint (device replaced %s with "
+                    "%s while off); the brief pump run and jump to %s in history "
+                    "are from this repair",
+                    self.address,
+                    event.detail["wanted"],
+                    event.detail["stuck_at"],
+                    event.detail["stuck_at"],
+                )
+            else:
+                _LOGGER.warning(
+                    "Ooler %s: detected stuck setpoint (device replaced %s with "
+                    "%s while off); automatic repair is disabled",
+                    self.address,
+                    event.detail["wanted"],
+                    event.detail["stuck_at"],
+                )
+            self._last_stuck_setpoint_detection = {
+                "timestamp": datetime.now(
+                    tz=ZoneInfo(self.hass.config.time_zone)
+                ).isoformat(),
+                "wanted": event.detail["wanted"],
+                "stuck_at": event.detail["stuck_at"],
+                "repaired": event.detail["repaired"],
+            }
+        elif event.type is ConnectionEventType.STUCK_SETPOINT_UNFIXABLE:
+            assert event.detail is not None
+            _LOGGER.warning(
+                "Ooler %s: unable to clear stuck setpoint after %s repair "
+                "attempts; the temperature you set is being discarded and "
+                "automatic repair cannot correct it",
+                self.address,
+                event.detail["consecutive"],
+            )
+            self._last_stuck_setpoint_unfixable = {
+                "timestamp": datetime.now(
+                    tz=ZoneInfo(self.hass.config.time_zone)
+                ).isoformat(),
+                "consecutive": event.detail["consecutive"],
+            }
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"stuck_setpoint_{self.address}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="stuck_setpoint_unfixable",
+                translation_placeholders={"address": self.address},
+            )
+        elif event.type is ConnectionEventType.STUCK_SETPOINT_RECOVERED:
+            assert event.detail is not None
+            self._stuck_setpoint_recoveries += 1
+            _LOGGER.info(
+                "Ooler %s: stuck setpoint recovered after %s repair(s)",
+                self.address,
+                event.detail["after"],
+            )
+            # Idempotent clear; a no-op if we never raised the issue.
+            ir.async_delete_issue(self.hass, DOMAIN, f"stuck_setpoint_{self.address}")
 
     @callback
     def _async_reconnect_check(self, _now: object = None) -> None:
@@ -400,6 +474,17 @@ class OolerCoordinator:
     def forced_reconnect_counts(self) -> dict[str, int]:
         """Return forced reconnect counts by trigger."""
         return self._forced_reconnect_counts
+
+    @property
+    def stuck_setpoint_diagnostics(self) -> dict[str, Any]:
+        """Return stuck-setpoint bug detection/repair metrics."""
+        return {
+            "detections": self._stuck_setpoint_detections,
+            "repairs": self._stuck_setpoint_repairs,
+            "recoveries": self._stuck_setpoint_recoveries,
+            "last_detection": self._last_stuck_setpoint_detection,
+            "last_unfixable": self._last_stuck_setpoint_unfixable,
+        }
 
     @property
     def sleep_schedule_active(self) -> bool:

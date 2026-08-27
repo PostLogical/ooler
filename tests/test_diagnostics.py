@@ -83,6 +83,18 @@ async def test_diagnostics_with_connection_events(hass) -> None:
         "subscription_mismatch": 2,
         "poll_failure": 1,
     }
+    coordinator.stuck_setpoint_diagnostics = {
+        "detections": 4,
+        "repairs": 3,
+        "recoveries": 1,
+        "last_detection": {
+            "timestamp": "2026-04-12T03:15:00",
+            "wanted": 62,
+            "stuck_at": 45,
+            "repaired": True,
+        },
+        "last_unfixable": None,
+    }
 
     entry = MagicMock()
     entry.unique_id = OOLER_ADDRESS
@@ -98,3 +110,8 @@ async def test_diagnostics_with_connection_events(hass) -> None:
         "subscription_mismatch": 2,
         "poll_failure": 1,
     }
+    stuck = result["connection_events"]["stuck_setpoint"]
+    assert stuck["detections"] == 4
+    assert stuck["repairs"] == 3
+    assert stuck["recoveries"] == 1
+    assert stuck["last_detection"]["stuck_at"] == 45
