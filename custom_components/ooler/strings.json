@@ -93,9 +93,9 @@
     }
   },
   "issues": {
-    "stuck_setpoint_unfixable": {
-      "title": "Ooler {address} keeps discarding its temperature",
-      "description": "The Ooler at **{address}** has a firmware fault that makes it discard the temperature you set and revert to an older value shortly after it powers off. This is triggered by letting a deep clean cycle run all the way to completion. Home Assistant detected the problem and tried to correct it automatically several times, but the fix did not hold.\n\n## What to do\n\n1. On the unit itself, start a deep clean cycle and then **cancel it after about 10 seconds** — do not let it finish. A completed clean is what causes this; a cancelled one clears it.\n2. Set your temperature again and wait a few minutes to confirm it holds (the revert can take up to a minute to appear).\n3. Avoid running deep cleans to completion on this unit.\n\nIf the problem persists after these steps, please report it at the [issue tracker](https://github.com/PostLogical/ooler/issues). This notification clears automatically if the device starts behaving again."
+    "setpoint_override_unfixable": {
+      "title": "Ooler {address} was discarding your temperature setting",
+      "description": "As of {since}, the Ooler at **{address}** was discarding the temperature you set and reverting to an older value shortly after it powered off — a firmware fault triggered by letting a deep clean cycle run all the way to completion. Home Assistant tried to correct it automatically several times, but the fix did not hold.\n\nThe device may have started behaving again since then. There is no automatic all-clear, so this notice stays until you dismiss it — it does not by itself mean the device is still broken right now.\n\n## What to do\n\n1. On the unit itself, start a deep clean cycle and then **cancel it after about 10 seconds** — do not let it finish. A completed clean is what causes this; a cancelled one clears it.\n2. Set your temperature again and wait a few minutes to confirm it holds (the revert can take up to a minute to appear).\n3. Avoid running deep cleans to completion on this unit.\n\nOnce your temperature is holding, dismiss this notification. If the problem comes back, please report it at the [issue tracker](https://github.com/PostLogical/ooler/issues)."
     }
   },
   "services": {

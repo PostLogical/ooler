@@ -127,14 +127,13 @@ class OolerCoordinator:
         self._last_subscription_mismatch: dict[str, Any] | None = None
         self._forced_reconnect_counts: dict[str, int] = {}
 
-        # Stuck-setpoint firmware bug tracking (see _async_on_connection_event).
-        # These counters are the only field signal for whether the library's
-        # automatic detection fires correctly, so surface them in diagnostics.
-        self._stuck_setpoint_detections: int = 0
-        self._stuck_setpoint_repairs: int = 0
-        self._stuck_setpoint_recoveries: int = 0
-        self._last_stuck_setpoint_detection: dict[str, Any] | None = None
-        self._last_stuck_setpoint_unfixable: dict[str, Any] | None = None
+        # Setpoint-override firmware bug tracking (see _async_on_connection_event).
+        # The library emits no recovery event, so the stored timestamps are the
+        # only way to tell a current problem from one that has already settled.
+        self._setpoint_override_fix_attempts: int = 0
+        self._setpoint_override_unfixables: int = 0
+        self._last_setpoint_override_fixed: dict[str, Any] | None = None
+        self._last_setpoint_override_unfixable: dict[str, Any] | None = None
 
         self._store: Store[dict[str, Any]] = Store(
             hass,
@@ -357,70 +356,70 @@ class OolerCoordinator:
             self._forced_reconnect_counts[trigger] = (
                 self._forced_reconnect_counts.get(trigger, 0) + 1
             )
-        elif event.type is ConnectionEventType.STUCK_SETPOINT_DETECTED:
+        elif event.type is ConnectionEventType.SETPOINT_OVERRIDE_FIXED:
             assert event.detail is not None
-            self._stuck_setpoint_detections += 1
-            if event.detail["repaired"]:
-                self._stuck_setpoint_repairs += 1
-                _LOGGER.info(
-                    "Ooler %s: repaired stuck setpoint (device replaced %s with "
-                    "%s while off); the brief pump run and jump to %s in history "
-                    "are from this repair",
-                    self.address,
-                    event.detail["wanted"],
-                    event.detail["stuck_at"],
-                    event.detail["stuck_at"],
-                )
+            detail = event.detail
+            attempt = detail["attempt"]
+            self._setpoint_override_fix_attempts += 1
+            restored = detail["restored"]
+            if restored is None:
+                # The device restored its own stored setpoint; never say "None".
+                restored_phrase = "kept the device's own stored setpoint"
             else:
-                _LOGGER.warning(
-                    "Ooler %s: detected stuck setpoint (device replaced %s with "
-                    "%s while off); automatic repair is disabled",
-                    self.address,
-                    event.detail["wanted"],
-                    event.detail["stuck_at"],
-                )
-            self._last_stuck_setpoint_detection = {
-                "timestamp": datetime.now(
-                    tz=ZoneInfo(self.hass.config.time_zone)
-                ).isoformat(),
-                "wanted": event.detail["wanted"],
-                "stuck_at": event.detail["stuck_at"],
-                "repaired": event.detail["repaired"],
-            }
-        elif event.type is ConnectionEventType.STUCK_SETPOINT_UNFIXABLE:
-            assert event.detail is not None
-            _LOGGER.warning(
-                "Ooler %s: unable to clear stuck setpoint after %s repair "
-                "attempts; the temperature you set is being discarded and "
-                "automatic repair cannot correct it",
-                self.address,
-                event.detail["consecutive"],
+                restored_phrase = f"restored your setpoint of {restored}°"
+            escalation = (
+                "" if attempt == 1 else f" (attempt {attempt} of the same incident)"
             )
-            self._last_stuck_setpoint_unfixable = {
+            _LOGGER.info(
+                "Ooler %s: device overrode the setpoint (%s° -> %s°) after "
+                "powering off; corrected it automatically and %s%s. A brief "
+                "pump run and a temporary setpoint change in the device's "
+                "history are from this, not from you.",
+                self.address,
+                detail["overrode"],
+                detail["overrode_with"],
+                restored_phrase,
+                escalation,
+            )
+            self._last_setpoint_override_fixed = {
                 "timestamp": datetime.now(
                     tz=ZoneInfo(self.hass.config.time_zone)
                 ).isoformat(),
-                "consecutive": event.detail["consecutive"],
+                "overrode": detail["overrode"],
+                "overrode_with": detail["overrode_with"],
+                "restored": restored,
+                "attempt": attempt,
             }
+        elif event.type is ConnectionEventType.SETPOINT_OVERRIDE_UNFIXABLE:
+            assert event.detail is not None
+            attempts = event.detail["attempts"]
+            self._setpoint_override_unfixables += 1
+            now = datetime.now(tz=ZoneInfo(self.hass.config.time_zone))
+            _LOGGER.warning(
+                "Ooler %s: could not stop the device overriding the setpoint "
+                "after %s attempts; the temperature you set is being discarded "
+                "and automatic correction has given up until it settles",
+                self.address,
+                attempts,
+            )
+            self._last_setpoint_override_unfixable = {
+                "timestamp": now.isoformat(),
+                "attempts": attempts,
+            }
+            # No recovery event exists, so this issue is dismissed by hand;
+            # "since" lets a stale card read as past-tense, not "broken now".
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                f"stuck_setpoint_{self.address}",
+                f"setpoint_override_{self.address}",
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="stuck_setpoint_unfixable",
-                translation_placeholders={"address": self.address},
+                translation_key="setpoint_override_unfixable",
+                translation_placeholders={
+                    "address": self.address,
+                    "since": now.strftime("%Y-%m-%d %H:%M %Z").strip(),
+                },
             )
-        elif event.type is ConnectionEventType.STUCK_SETPOINT_RECOVERED:
-            assert event.detail is not None
-            self._stuck_setpoint_recoveries += 1
-            _LOGGER.info(
-                "Ooler %s: stuck setpoint recovered after %s repair(s)",
-                self.address,
-                event.detail["after"],
-            )
-            # Idempotent clear; a no-op if we never raised the issue.
-            ir.async_delete_issue(self.hass, DOMAIN, f"stuck_setpoint_{self.address}")
 
     @callback
     def _async_reconnect_check(self, _now: object = None) -> None:
@@ -476,14 +475,13 @@ class OolerCoordinator:
         return self._forced_reconnect_counts
 
     @property
-    def stuck_setpoint_diagnostics(self) -> dict[str, Any]:
-        """Return stuck-setpoint bug detection/repair metrics."""
+    def setpoint_override_diagnostics(self) -> dict[str, Any]:
+        """Return setpoint-override bug fix/unfixable metrics."""
         return {
-            "detections": self._stuck_setpoint_detections,
-            "repairs": self._stuck_setpoint_repairs,
-            "recoveries": self._stuck_setpoint_recoveries,
-            "last_detection": self._last_stuck_setpoint_detection,
-            "last_unfixable": self._last_stuck_setpoint_unfixable,
+            "fix_attempts": self._setpoint_override_fix_attempts,
+            "unfixables": self._setpoint_override_unfixables,
+            "last_fixed": self._last_setpoint_override_fixed,
+            "last_unfixable": self._last_setpoint_override_unfixable,
         }
 
     @property

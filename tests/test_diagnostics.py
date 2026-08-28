@@ -83,17 +83,20 @@ async def test_diagnostics_with_connection_events(hass) -> None:
         "subscription_mismatch": 2,
         "poll_failure": 1,
     }
-    coordinator.stuck_setpoint_diagnostics = {
-        "detections": 4,
-        "repairs": 3,
-        "recoveries": 1,
-        "last_detection": {
+    coordinator.setpoint_override_diagnostics = {
+        "fix_attempts": 2,
+        "unfixables": 1,
+        "last_fixed": {
             "timestamp": "2026-04-12T03:15:00",
-            "wanted": 62,
-            "stuck_at": 45,
-            "repaired": True,
+            "overrode": 62,
+            "overrode_with": 75,
+            "restored": 62,
+            "attempt": 1,
         },
-        "last_unfixable": None,
+        "last_unfixable": {
+            "timestamp": "2026-04-12T04:00:00",
+            "attempts": 3,
+        },
     }
 
     entry = MagicMock()
@@ -110,8 +113,8 @@ async def test_diagnostics_with_connection_events(hass) -> None:
         "subscription_mismatch": 2,
         "poll_failure": 1,
     }
-    stuck = result["connection_events"]["stuck_setpoint"]
-    assert stuck["detections"] == 4
-    assert stuck["repairs"] == 3
-    assert stuck["recoveries"] == 1
-    assert stuck["last_detection"]["stuck_at"] == 45
+    override = result["connection_events"]["setpoint_override"]
+    assert override["fix_attempts"] == 2
+    assert override["unfixables"] == 1
+    assert override["last_fixed"]["overrode_with"] == 75
+    assert override["last_unfixable"]["attempts"] == 3

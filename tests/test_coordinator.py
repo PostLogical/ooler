@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1338,10 +1339,10 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
     }
 
 
-async def test_connection_event_stuck_setpoint_detected_repaired(
+async def test_connection_event_setpoint_override_fixed(
     hass: HomeAssistant,
 ) -> None:
-    """Test STUCK_SETPOINT_DETECTED with repaired=True counts a repair."""
+    """Test SETPOINT_OVERRIDE_FIXED counts a fix attempt and records last_fixed."""
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1351,25 +1352,96 @@ async def test_connection_event_stuck_setpoint_detected_repaired(
         coordinator = OolerCoordinator(hass, entry)
 
     event = ConnectionEvent(
-        type=ConnectionEventType.STUCK_SETPOINT_DETECTED,
+        type=ConnectionEventType.SETPOINT_OVERRIDE_FIXED,
         timestamp=0.0,
-        detail={"wanted": 62, "stuck_at": 45, "repaired": True},
+        detail={"overrode": 62, "overrode_with": 75, "restored": 62, "attempt": 1},
     )
     coordinator._async_on_connection_event(event)
 
-    diag = coordinator.stuck_setpoint_diagnostics
-    assert diag["detections"] == 1
-    assert diag["repairs"] == 1
-    assert diag["last_detection"]["wanted"] == 62
-    assert diag["last_detection"]["stuck_at"] == 45
-    assert diag["last_detection"]["repaired"] is True
-    assert "timestamp" in diag["last_detection"]
+    diag = coordinator.setpoint_override_diagnostics
+    assert diag["fix_attempts"] == 1
+    assert diag["last_fixed"]["overrode"] == 62
+    assert diag["last_fixed"]["overrode_with"] == 75
+    assert diag["last_fixed"]["restored"] == 62
+    assert diag["last_fixed"]["attempt"] == 1
+    assert "timestamp" in diag["last_fixed"]
+    # A routine fix raises no repair issue.
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, f"setpoint_override_{OOLER_ADDRESS}")
+        is None
+    )
 
 
-async def test_connection_event_stuck_setpoint_detected_not_repaired(
+async def test_connection_event_setpoint_override_fixed_restored_none(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test restored=None is worded as keeping the device's stored setpoint."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    with caplog.at_level(logging.INFO):
+        coordinator._async_on_connection_event(
+            ConnectionEvent(
+                type=ConnectionEventType.SETPOINT_OVERRIDE_FIXED,
+                timestamp=0.0,
+                detail={
+                    "overrode": 62,
+                    "overrode_with": 75,
+                    "restored": None,
+                    "attempt": 1,
+                },
+            )
+        )
+
+    assert coordinator.setpoint_override_diagnostics["last_fixed"]["restored"] is None
+    # Never "restored to None"; must describe keeping the device's own value.
+    assert "None" not in caplog.text
+    assert "stored setpoint" in caplog.text
+
+
+async def test_connection_event_setpoint_override_fixed_escalation(
     hass: HomeAssistant,
 ) -> None:
-    """Test STUCK_SETPOINT_DETECTED with repaired=False counts no repair."""
+    """Test each escalating rung counts a fix attempt and logs the escalation."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    # One episode escalating across power-off cycles: attempt 1, then 2.
+    for attempt in (1, 2):
+        coordinator._async_on_connection_event(
+            ConnectionEvent(
+                type=ConnectionEventType.SETPOINT_OVERRIDE_FIXED,
+                timestamp=0.0,
+                detail={
+                    "overrode": 62,
+                    "overrode_with": 75,
+                    "restored": 62,
+                    "attempt": attempt,
+                },
+            )
+        )
+
+    diag = coordinator.setpoint_override_diagnostics
+    # Each rung is a fix attempt; last_fixed reflects how far it escalated.
+    assert diag["fix_attempts"] == 2
+    assert diag["last_fixed"]["attempt"] == 2
+
+
+async def test_connection_event_setpoint_override_unfixable(
+    hass: HomeAssistant,
+) -> None:
+    """Test SETPOINT_OVERRIDE_UNFIXABLE records info and raises a repair issue."""
     client = make_mock_client()
     entry = make_mock_entry()
 
@@ -1379,80 +1451,22 @@ async def test_connection_event_stuck_setpoint_detected_not_repaired(
         coordinator = OolerCoordinator(hass, entry)
 
     event = ConnectionEvent(
-        type=ConnectionEventType.STUCK_SETPOINT_DETECTED,
+        type=ConnectionEventType.SETPOINT_OVERRIDE_UNFIXABLE,
         timestamp=0.0,
-        detail={"wanted": 62, "stuck_at": 120, "repaired": False},
+        detail={"attempts": 3},
     )
     coordinator._async_on_connection_event(event)
 
-    diag = coordinator.stuck_setpoint_diagnostics
-    assert diag["detections"] == 1
-    assert diag["repairs"] == 0
-    assert diag["last_detection"]["repaired"] is False
-
-
-async def test_connection_event_stuck_setpoint_unfixable(
-    hass: HomeAssistant,
-) -> None:
-    """Test STUCK_SETPOINT_UNFIXABLE records info and raises a repair issue."""
-    client = make_mock_client()
-    entry = make_mock_entry()
-
-    with patch(
-        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
-    ):
-        coordinator = OolerCoordinator(hass, entry)
-
-    event = ConnectionEvent(
-        type=ConnectionEventType.STUCK_SETPOINT_UNFIXABLE,
-        timestamp=0.0,
-        detail={"consecutive": 3},
-    )
-    coordinator._async_on_connection_event(event)
-
-    diag = coordinator.stuck_setpoint_diagnostics
-    assert diag["last_unfixable"]["consecutive"] == 3
+    diag = coordinator.setpoint_override_diagnostics
+    assert diag["unfixables"] == 1
+    assert diag["last_unfixable"]["attempts"] == 3
     assert "timestamp" in diag["last_unfixable"]
 
     issue = ir.async_get(hass).async_get_issue(
-        DOMAIN, f"stuck_setpoint_{OOLER_ADDRESS}"
+        DOMAIN, f"setpoint_override_{OOLER_ADDRESS}"
     )
     assert issue is not None
-    assert issue.translation_key == "stuck_setpoint_unfixable"
-    assert issue.translation_placeholders == {"address": OOLER_ADDRESS}
-
-
-async def test_connection_event_stuck_setpoint_recovered(
-    hass: HomeAssistant,
-) -> None:
-    """Test STUCK_SETPOINT_RECOVERED clears a raised issue and counts recovery."""
-    client = make_mock_client()
-    entry = make_mock_entry()
-
-    with patch(
-        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
-    ):
-        coordinator = OolerCoordinator(hass, entry)
-
-    registry = ir.async_get(hass)
-    issue_id = f"stuck_setpoint_{OOLER_ADDRESS}"
-
-    coordinator._async_on_connection_event(
-        ConnectionEvent(
-            type=ConnectionEventType.STUCK_SETPOINT_UNFIXABLE,
-            timestamp=0.0,
-            detail={"consecutive": 3},
-        )
-    )
-    assert registry.async_get_issue(DOMAIN, issue_id) is not None
-
-    coordinator._async_on_connection_event(
-        ConnectionEvent(
-            type=ConnectionEventType.STUCK_SETPOINT_RECOVERED,
-            timestamp=0.0,
-            detail={"after": 3},
-        )
-    )
-
-    assert coordinator.stuck_setpoint_diagnostics["recoveries"] == 1
-    assert registry.async_get_issue(DOMAIN, issue_id) is None
+    assert issue.translation_key == "setpoint_override_unfixable"
+    assert issue.translation_placeholders["address"] == OOLER_ADDRESS
+    # The card carries a "since" timestamp so a stale card reads as past-tense.
+    assert "since" in issue.translation_placeholders
