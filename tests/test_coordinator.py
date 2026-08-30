@@ -16,6 +16,7 @@ from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import (
     ConnectionEvent,
     ConnectionEventType,
+    DeviceOffError,
     OolerSleepSchedule,
     SleepScheduleNight,
 )
@@ -114,6 +115,21 @@ async def test_coordinator_connect_failure() -> None:
 
     await coordinator._async_connect()
 
+    assert coordinator._unit_synced is False
+
+
+async def test_coordinator_connect_unit_sync_deferred_when_off() -> None:
+    """Test the unit sync defers (no crash, stays unsynced) if the device is off."""
+    coordinator, client = make_coordinator(connected=False)
+    client.state.temperature_unit = "F"
+    coordinator._ha_unit = "C"
+    client.set_temperature_unit = AsyncMock(side_effect=DeviceOffError("off"))
+
+    await coordinator._async_connect()
+
+    client.set_temperature_unit.assert_called_once_with("C")
+    # Refusal is swallowed: connect completes and the flag stays False so a
+    # later connect while on retries the sync.
     assert coordinator._unit_synced is False
 
 

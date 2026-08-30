@@ -27,6 +27,7 @@ from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import (
     ConnectionEvent,
     ConnectionEventType,
+    DeviceOffError,
     OolerBLEDevice,
     OolerSleepSchedule,
     SleepScheduleNight,
@@ -267,8 +268,20 @@ class OolerCoordinator:
                     self.client.state.temperature_unit,
                     self._ha_unit,
                 )
-                await self.client.set_temperature_unit(self._ha_unit)
-            self._unit_synced = True
+                try:
+                    await self.client.set_temperature_unit(self._ha_unit)
+                except DeviceOffError:
+                    # Background sync with no user action to surface an error
+                    # to; the device refuses writes while off, so retry the
+                    # unit sync on a later connect while it is on.
+                    _LOGGER.debug(
+                        "Ooler %s is off; deferring temperature-unit sync",
+                        self.address,
+                    )
+                else:
+                    self._unit_synced = True
+            else:
+                self._unit_synced = True
             await self._async_post_connect()
         except (BleakError, TimeoutError):
             _LOGGER.warning(

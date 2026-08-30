@@ -90,6 +90,12 @@
     },
     "schedule_write_failed": {
       "message": "{error}"
+    },
+    "set_temperature_while_off": {
+      "message": "Turn the Ooler on before setting a temperature — it ignores temperature changes while it is powered off."
+    },
+    "set_fan_mode_while_off": {
+      "message": "Turn the Ooler on before changing the fan mode — it ignores changes while it is powered off."
     }
   },
   "issues": {

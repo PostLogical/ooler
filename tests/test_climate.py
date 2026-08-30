@@ -8,6 +8,8 @@ import pytest
 from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
+from ooler_ble_client import DeviceOffError
 
 from custom_components.ooler.climate import Ooler, async_setup_entry
 from custom_components.ooler.coordinator import OolerCoordinator
@@ -221,6 +223,13 @@ class TestOolerClimate:
         await entity.async_set_fan_mode("Turbo")
         entity.coordinator.client.set_mode.assert_not_called()
 
+    async def test_set_fan_mode_while_off_raises(self) -> None:
+        """Test the library's off-refusal maps to a ServiceValidationError."""
+        entity = self._make_entity(power=False)
+        entity.coordinator.client.set_mode.side_effect = DeviceOffError("off")
+        with pytest.raises(ServiceValidationError):
+            await entity.async_set_fan_mode("Silent")
+
     async def test_set_temperature(self) -> None:
         """Test setting temperature."""
         entity = self._make_entity()
@@ -239,6 +248,20 @@ class TestOolerClimate:
         entity = self._make_entity()
         with pytest.raises(ValueError, match="No target temperature"):
             await entity.async_set_temperature()
+
+    async def test_set_temperature_while_off_raises(self) -> None:
+        """Test the library's off-refusal maps to a ServiceValidationError."""
+        entity = self._make_entity(power=False)
+        entity.coordinator.client.set_temperature.side_effect = DeviceOffError("off")
+        with pytest.raises(ServiceValidationError):
+            await entity.async_set_temperature(temperature=68)
+
+    async def test_set_temperature_out_of_range_propagates(self) -> None:
+        """Test a caller error (ValueError) is not collapsed into the off message."""
+        entity = self._make_entity()
+        entity.coordinator.client.set_temperature.side_effect = ValueError("bad")
+        with pytest.raises(ValueError, match="bad"):
+            await entity.async_set_temperature(temperature=200)
 
     def test_extra_state_attributes_with_schedule(self) -> None:
         """Test extra state attributes with an active sleep schedule."""

@@ -15,8 +15,10 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from ooler_ble_client import DeviceOffError
 
 from . import OolerConfigEntry
 from .const import (
@@ -25,6 +27,7 @@ from .const import (
     DEFAULT_MAX_TEMP_F,
     DEFAULT_MIN_TEMP_C,
     DEFAULT_MIN_TEMP_F,
+    DOMAIN,
 )
 from .coordinator import OolerCoordinator
 from .entity import OolerEntity
@@ -199,9 +202,15 @@ class Ooler(OolerEntity, ClimateEntity):
             )
             return
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_mode(
-            cast("Literal['Silent', 'Regular', 'Boost']", fan_mode)
-        )
+        try:
+            await self.coordinator.client.set_mode(
+                cast("Literal['Silent', 'Regular', 'Boost']", fan_mode)
+            )
+        except DeviceOffError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="set_fan_mode_while_off",
+            ) from err
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -211,7 +220,13 @@ class Ooler(OolerEntity, ClimateEntity):
         if temp == self.target_temperature:
             return
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_temperature(int(temp))
+        try:
+            await self.coordinator.client.set_temperature(int(temp))
+        except DeviceOffError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="set_temperature_while_off",
+            ) from err
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
