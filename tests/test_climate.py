@@ -224,11 +224,16 @@ class TestOolerClimate:
         entity.coordinator.client.set_mode.assert_not_called()
 
     async def test_set_fan_mode_while_off_raises(self) -> None:
-        """Test the library's off-refusal maps to a ServiceValidationError."""
+        """Test off-refusal maps to ServiceValidationError and resyncs the UI."""
         entity = self._make_entity(power=False)
+        entity.hass = MagicMock()
+        entity.entity_id = "climate.tawaret"
+        entity.hass.states.get.return_value = MagicMock(state="68", attributes={})
         entity.coordinator.client.set_mode.side_effect = DeviceOffError("off")
         with pytest.raises(ServiceValidationError):
             await entity.async_set_fan_mode("Silent")
+        _, kwargs = entity.hass.states.async_set.call_args
+        assert kwargs["force_update"] is True
 
     async def test_set_temperature(self) -> None:
         """Test setting temperature."""
@@ -250,11 +255,25 @@ class TestOolerClimate:
             await entity.async_set_temperature()
 
     async def test_set_temperature_while_off_raises(self) -> None:
-        """Test the library's off-refusal maps to a ServiceValidationError."""
+        """Test off-refusal maps to ServiceValidationError and resyncs the UI."""
         entity = self._make_entity(power=False)
+        entity.hass = MagicMock()
+        entity.entity_id = "climate.tawaret"
+        entity.hass.states.get.return_value = MagicMock(state="68", attributes={})
         entity.coordinator.client.set_temperature.side_effect = DeviceOffError("off")
         with pytest.raises(ServiceValidationError):
             await entity.async_set_temperature(temperature=68)
+        _, kwargs = entity.hass.states.async_set.call_args
+        assert kwargs["force_update"] is True
+
+    async def test_resync_after_refusal_no_state(self) -> None:
+        """Test the resync is a no-op when the entity has no state yet."""
+        entity = self._make_entity()
+        entity.hass = MagicMock()
+        entity.entity_id = "climate.tawaret"
+        entity.hass.states.get.return_value = None
+        entity._resync_after_refusal()
+        entity.hass.states.async_set.assert_not_called()
 
     async def test_set_temperature_out_of_range_propagates(self) -> None:
         """Test a caller error (ValueError) is not collapsed into the off message."""

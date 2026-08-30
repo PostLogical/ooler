@@ -14,7 +14,7 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -207,6 +207,7 @@ class Ooler(OolerEntity, ClimateEntity):
                 cast("Literal['Silent', 'Regular', 'Boost']", fan_mode)
             )
         except DeviceOffError as err:
+            self._resync_after_refusal()
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="set_fan_mode_while_off",
@@ -223,10 +224,27 @@ class Ooler(OolerEntity, ClimateEntity):
         try:
             await self.coordinator.client.set_temperature(int(temp))
         except DeviceOffError as err:
+            self._resync_after_refusal()
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="set_temperature_while_off",
             ) from err
+
+    @callback
+    def _resync_after_refusal(self) -> None:
+        """Re-assert the true state after the device refused a write."""
+        # A refusal leaves HA state unchanged, so a plain async_write_ha_state()
+        # would emit only state_reported, not state_changed — and a card that
+        # optimistically showed the rejected value resets on state_changed. Force
+        # the event so the control snaps back to the device's real value; the
+        # entity's state is never wrong, only re-broadcast.
+        if (state := self.hass.states.get(self.entity_id)) is not None:
+            self.hass.states.async_set(
+                self.entity_id,
+                state.state,
+                state.attributes,
+                force_update=True,
+            )
 
     async def async_set_clean(self) -> None:
         """Start cleaning the unit."""
