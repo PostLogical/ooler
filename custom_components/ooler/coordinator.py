@@ -431,8 +431,15 @@ class OolerCoordinator:
                 if device
                 else self.address
             )
-            # No recovery event exists, so this issue is dismissed by hand;
-            # "since" lets a stale card read as past-tense, not "broken now".
+            # No recovery event exists, so this issue is cleared by hand via
+            # Ignore; "since" lets a stale card read as past-tense, not "broken
+            # now". Delete any prior entry first: HA keeps an Ignored issue's
+            # dismissed_version across a re-raise, which would silently mute a
+            # genuine recurrence — deleting drops that so a new episode always
+            # notifies (and makes the card re-showable).
+            ir.async_delete_issue(
+                self.hass, DOMAIN, f"setpoint_override_{self.address}"
+            )
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,

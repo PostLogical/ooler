@@ -1520,3 +1520,35 @@ async def test_connection_event_setpoint_override_unfixable_uses_device_name(
     )
     assert issue.translation_placeholders["name"] == "Tawaret"
     assert issue.translation_placeholders["address"] == OOLER_ADDRESS
+
+
+async def test_connection_event_setpoint_override_unfixable_reraises_after_ignore(
+    hass: HomeAssistant,
+) -> None:
+    """Test an Ignored card re-appears (not muted) when the fault recurs."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    issue_id = f"setpoint_override_{OOLER_ADDRESS}"
+    event = ConnectionEvent(
+        type=ConnectionEventType.SETPOINT_OVERRIDE_UNFIXABLE,
+        timestamp=0.0,
+        detail={"attempts": 3},
+    )
+
+    # First occurrence, then the user Ignores the card.
+    coordinator._async_on_connection_event(event)
+    ir.async_ignore_issue(hass, DOMAIN, issue_id, True)
+    ignored = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert ignored.dismissed_version is not None
+
+    # A recurrence must re-show a fresh, un-Ignored card (delete before create).
+    coordinator._async_on_connection_event(event)
+    reissue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert reissue is not None
+    assert reissue.dismissed_version is None
