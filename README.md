@@ -218,6 +218,7 @@ If the BLE connection needs to be re-verified later, use the Reconfigure option 
 - **One Bluetooth connection at a time.** The Ooler only supports a single BLE connection. If the Ooler app is connected, HA cannot connect (and vice versa). Use the Bluetooth Connection switch to disconnect from HA when you need the app.
 - **ESP32 proxy connection slots.** Each Ooler uses 4 BLE notification slots. ESPHome proxies provide 12 slots (vs 9 for raw ESP-IDF). If you have multiple BLE devices on one proxy, you may run into slot limits.
 - **No Wi-Fi or cloud support.** The Ooler communicates only via Bluetooth. The device must be within BLE range of your HA server or an ESPHome Bluetooth proxy.
+- **Third-party climate cards may show a rejected temperature.** When the Ooler is off it refuses temperature changes and Home Assistant shows an error, but some custom cards — including the Mushroom climate card — keep displaying the value you tried to set until the page is reloaded. The temperature was **not** changed on the device, and Home Assistant's own thermostat control shows the correct value. This is a limitation of those cards, not of the integration; use the built-in **Thermostat** card, or a **Tile** card with the target-temperature feature, both of which resync correctly.
 
 ### Troubleshooting
 
