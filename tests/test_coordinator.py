@@ -1484,5 +1484,39 @@ async def test_connection_event_setpoint_override_unfixable(
     assert issue is not None
     assert issue.translation_key == "setpoint_override_unfixable"
     assert issue.translation_placeholders["address"] == OOLER_ADDRESS
+    # No device registered here, so the name falls back to the MAC.
+    assert issue.translation_placeholders["name"] == OOLER_ADDRESS
     # The card carries a "since" timestamp so a stale card reads as past-tense.
     assert "since" in issue.translation_placeholders
+
+
+async def test_connection_event_setpoint_override_unfixable_uses_device_name(
+    hass: HomeAssistant,
+) -> None:
+    """Test the repair card shows the user-facing device name, not the MAC."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    device = MagicMock()
+    device.name_by_user = "Tawaret"
+    device.name = "OOLER-92106080603"
+    with patch("custom_components.ooler.coordinator.dr.async_get") as mock_dr:
+        mock_dr.return_value.async_get_device.return_value = device
+        coordinator._async_on_connection_event(
+            ConnectionEvent(
+                type=ConnectionEventType.SETPOINT_OVERRIDE_UNFIXABLE,
+                timestamp=0.0,
+                detail={"attempts": 3},
+            )
+        )
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, f"setpoint_override_{OOLER_ADDRESS}"
+    )
+    assert issue.translation_placeholders["name"] == "Tawaret"
+    assert issue.translation_placeholders["address"] == OOLER_ADDRESS

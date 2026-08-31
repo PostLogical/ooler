@@ -20,6 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
@@ -419,6 +420,17 @@ class OolerCoordinator:
                 "timestamp": now.isoformat(),
                 "attempts": attempts,
             }
+            # Show the name the user sees on the device page (a rename writes
+            # name_by_user; entry.title would go stale). Fall back to the MAC
+            # if the registry entry isn't there yet — e.g. very early in setup.
+            device = dr.async_get(self.hass).async_get_device(
+                connections={(dr.CONNECTION_BLUETOOTH, self.address)}
+            )
+            name = (
+                (device.name_by_user or device.name or self.address)
+                if device
+                else self.address
+            )
             # No recovery event exists, so this issue is dismissed by hand;
             # "since" lets a stale card read as past-tense, not "broken now".
             ir.async_create_issue(
@@ -429,6 +441,7 @@ class OolerCoordinator:
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="setpoint_override_unfixable",
                 translation_placeholders={
+                    "name": name,
                     "address": self.address,
                     "since": now.strftime("%Y-%m-%d %H:%M %Z").strip(),
                 },
