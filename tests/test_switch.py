@@ -80,12 +80,6 @@ class TestOolerCleaningSwitch:
         entity.coordinator.client.state.clean = False
         assert entity.is_on is False
 
-    def test_is_on_state_none(self) -> None:
-        """Test is_on returns None when state is None."""
-        entity = self._make_entity()
-        entity.coordinator.client.state = None
-        assert entity.is_on is None
-
     def test_available(self) -> None:
         """Test availability."""
         entity = self._make_entity(connected=True)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
@@ -43,17 +43,18 @@ class OolerCleaningSwitch(OolerEntity, SwitchEntity):
         self._attr_unique_id = f"{coordinator.address}_cleaning_binary_sensor"
 
     @property
+    @override
     def is_on(self) -> bool | None:
         """Return true if the device is cleaning."""
-        if self.coordinator.client.state is not None:
-            return self.coordinator.client.state.clean
-        return None
+        return self.coordinator.client.state.clean
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start cleaning the unit."""
         await self.coordinator.async_ensure_connected()
         await self.coordinator.client.set_clean(True)
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Stop cleaning the unit."""
         await self.coordinator.async_ensure_connected()
@@ -71,6 +72,7 @@ class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
         self._attr_unique_id = f"{coordinator.address}_sleep_schedule"
 
     @property
+    @override
     def available(self) -> bool:
         """
         Return whether the switch is available.
@@ -86,14 +88,17 @@ class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):
         )
 
     @property
+    @override
     def is_on(self) -> bool:
         """Return true if a sleep schedule is active on the device."""
         return self.coordinator.sleep_schedule_active
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable the cached sleep schedule on the device."""
         await self.coordinator.async_enable_sleep_schedule()
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable the sleep schedule on the device."""
         await self.coordinator.async_disable_sleep_schedule()
@@ -111,20 +116,24 @@ class OolerConnectionSwitch(OolerEntity, SwitchEntity):
         self._attr_unique_id = f"{coordinator.address}_connection_binary_sensor"
 
     @property
+    @override
     def available(self) -> bool:
         """This switch controls availability, so always return true."""
         return True
 
     @property
+    @override
     def is_on(self) -> bool:
         """Return true if the device is connected."""
         return self.coordinator.client.is_connected
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Connect to the device."""
         self.coordinator.connection_enabled = True
         await self.coordinator.async_ensure_connected()
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disconnect from the device and suppress auto-reconnect."""
         self.coordinator.connection_enabled = False

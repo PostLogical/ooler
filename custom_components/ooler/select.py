@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -34,21 +36,25 @@ class OolerSavedScheduleSelect(OolerEntity, SelectEntity):
         self._attr_unique_id = f"{coordinator.address}_saved_schedule"
 
     @property
+    @override
     def available(self) -> bool:
         """Available when connected and schedules exist."""
         return self.coordinator.is_connected and bool(self.coordinator.saved_schedules)
 
     @property
+    @override
     def options(self) -> list[str]:
         """Return the list of saved schedule names."""
         names = list(self.coordinator.saved_schedules.keys())
         return names or ["(none)"]
 
     @property
+    @override
     def current_option(self) -> str | None:
         """Return the currently active saved schedule name."""
         return self.coordinator.active_saved_name
 
+    @override
     async def async_select_option(self, option: str) -> None:
         """Load the selected schedule onto the device."""
         await self.coordinator.async_load_saved_schedule(option)

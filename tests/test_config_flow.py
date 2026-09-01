@@ -297,22 +297,6 @@ async def test_user_flow_select_device_already_paired() -> None:
     mock_create.assert_called_once_with(OOLER_NAME)
 
 
-async def test_user_flow_select_none_model() -> None:
-    """Test user flow aborts when model_name is None."""
-    flow = OolerConfigFlow()
-    flow.hass = MagicMock()
-    flow._discovered_devices = {OOLER_ADDRESS: None}
-
-    with (
-        patch.object(flow, "async_set_unique_id", return_value=None),
-        patch.object(flow, "_abort_if_unique_id_configured"),
-    ):
-        result = await flow.async_step_user(user_input={"address": OOLER_ADDRESS})
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "no_devices_found"
-
-
 async def test_user_flow_filters_configured_and_non_ooler() -> None:
     """Test user flow filters out configured and non-Ooler devices."""
     flow = OolerConfigFlow()

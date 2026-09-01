@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, override
 
 import voluptuous as vol
 from bleak.exc import BleakError
@@ -31,6 +31,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
         self._pairing_task: asyncio.Task[None] | None = None
         self._paired: bool = False
 
+    @override
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
@@ -64,6 +65,7 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="bluetooth_confirm", description_placeholders=placeholders
         )
 
+    @override
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -75,8 +77,6 @@ class OolerConfigFlow(ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
 
             model_name = self._discovered_devices[address]
-            if model_name is None:
-                return self.async_abort(reason="no_devices_found")
 
             discovery_info = async_last_service_info(
                 self.hass, address, connectable=True

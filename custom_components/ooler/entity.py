@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
@@ -26,6 +26,7 @@ class OolerEntity(Entity):
         )
 
     @property
+    @override
     def available(self) -> bool:
         """Return whether the entity is available."""
         return self.coordinator.is_connected
@@ -35,6 +36,7 @@ class OolerEntity(Entity):
         """Handle coordinator state update."""
         self.async_write_ha_state()
 
+    @override
     async def async_added_to_hass(self) -> None:
         """Register state update callback."""
         await super().async_added_to_hass()

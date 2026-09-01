@@ -9,3 +9,34 @@ branch = false
 [tool.coverage.report]
 show_missing = true
 fail_under = 100
+
+# Mirrors Home Assistant core's strict-typing mypy profile (minus core-internal
+# plugins/stubs), so the integration is held to the Platinum strict-typing bar.
+[tool.mypy]
+python_version = "3.13"
+platform = "linux"
+exclude = ["^tests/"]
+show_error_codes = true
+follow_imports = "normal"
+local_partial_types = true
+strict_equality = true
+no_implicit_optional = true
+warn_incomplete_stub = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+enable_error_code = [
+    "deprecated",
+    "explicit-override",
+    "ignore-without-code",
+    "redundant-self",
+    "truthy-iterable",
+]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unreachable = true

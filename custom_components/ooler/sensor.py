@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import PERCENTAGE
@@ -53,6 +53,7 @@ class OolerWaterLevelSensor(OolerEntity, SensorEntity):
         self._attr_unique_id = f"{coordinator.address}_water_level_sensor"
 
     @property
+    @override
     def native_value(self) -> int | None:
         """Return the water level of the Ooler."""
         return self.coordinator.client.state.water_level
@@ -69,6 +70,7 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
         self._attr_unique_id = f"{coordinator.address}_schedule_tonight"
 
     @property
+    @override
     def native_value(self) -> str | None:
         """Return a summary of tonight's schedule."""
         night = self.coordinator.tonight_schedule
@@ -80,6 +82,7 @@ class OolerScheduleTonightSensor(OolerEntity, SensorEntity):
         return f"{bedtime}-{off}, {temp}\u00b0F"
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return tonight's schedule details."""
         night = self.coordinator.tonight_schedule

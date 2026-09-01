@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, override
 
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
@@ -74,6 +74,7 @@ class Ooler(OolerEntity, ClimateEntity):
         self._fan_modes: list[str] = ["Silent", "Regular", "Boost"]
 
     @property
+    @override
     def temperature_unit(self) -> str:
         """Return temperature unit based on device setting."""
         if self.coordinator.client.state.temperature_unit == "C":
@@ -81,6 +82,7 @@ class Ooler(OolerEntity, ClimateEntity):
         return UnitOfTemperature.FAHRENHEIT
 
     @property
+    @override
     def min_temp(self) -> float:
         """Return the minimum target temperature."""
         if self.coordinator.client.state.temperature_unit == "C":
@@ -88,6 +90,7 @@ class Ooler(OolerEntity, ClimateEntity):
         return DEFAULT_MIN_TEMP_F
 
     @property
+    @override
     def max_temp(self) -> float:
         """Return the maximum target temperature."""
         if self.coordinator.client.state.temperature_unit == "C":
@@ -95,26 +98,31 @@ class Ooler(OolerEntity, ClimateEntity):
         return DEFAULT_MAX_TEMP_F
 
     @property
+    @override
     def target_temperature(self) -> int | None:
         """Return the temperature we try to reach."""
         return self.coordinator.client.state.set_temperature
 
     @property
+    @override
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
         return self.coordinator.client.state.actual_temperature
 
     @property
+    @override
     def fan_mode(self) -> str | None:
         """Return the fan setting."""
         return self.coordinator.client.state.mode
 
     @property
+    @override
     def fan_modes(self) -> list[str] | None:
         """Return the fan modes list."""
         return self._fan_modes
 
     @property
+    @override
     def hvac_mode(self) -> HVACMode | None:
         """Return current operation."""
         if self.coordinator.client.state.power:
@@ -122,11 +130,13 @@ class Ooler(OolerEntity, ClimateEntity):
         return HVACMode.OFF
 
     @property
+    @override
     def hvac_modes(self) -> list[HVACMode]:
         """Return the operation modes list."""
         return self._operation_list
 
     @property
+    @override
     def hvac_action(self) -> HVACAction | None:
         """Return the current HVAC action (heating, cooling)."""
         hvacmode = self.hvac_mode
@@ -142,11 +152,13 @@ class Ooler(OolerEntity, ClimateEntity):
         return HVACAction.IDLE
 
     @property
+    @override
     def supported_features(self) -> ClimateEntityFeature:
         """Return the list of supported features."""
         return self._attr_supported_features
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return sleep schedule details as extra state attributes."""
         schedule = self.coordinator.client.sleep_schedule
@@ -188,12 +200,14 @@ class Ooler(OolerEntity, ClimateEntity):
         """Return if the unit is cleaning itself."""
         return self.coordinator.client.state.clean
 
+    @override
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
         await self.coordinator.async_ensure_connected()
         power = hvac_mode != HVACMode.OFF
         await self.coordinator.client.set_power(power)
 
+    @override
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode. Valid values are Silent, Regular, and Boost."""
         if fan_mode not in self._fan_modes:
@@ -213,6 +227,7 @@ class Ooler(OolerEntity, ClimateEntity):
                 translation_key="set_fan_mode_while_off",
             ) from err
 
+    @override
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         temp = kwargs.get(ATTR_TEMPERATURE)

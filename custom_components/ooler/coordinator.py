@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 from bleak.exc import BleakError
 from homeassistant.components.bluetooth import (
@@ -24,6 +23,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from ooler_ble_client import (
     ConnectionEvent,
@@ -239,20 +239,20 @@ class OolerCoordinator:
         # If a connect is already in-flight, await it instead of starting another
         if self._connect_task and not self._connect_task.done():
             await self._connect_task
-            if self.client.is_connected:
-                return
-        try:
-            await self.client.connect()
-        except (BleakError, TimeoutError) as err:
-            _LOGGER.warning(
-                "Failed to connect to Ooler %s", self.address, exc_info=True
-            )
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="connect_failed",
-                translation_placeholders={"address": self.address},
-            ) from err
-        await self._async_post_connect()
+        # The in-flight task may have connected us; only connect if it did not.
+        if not self.client.is_connected:
+            try:
+                await self.client.connect()
+            except (BleakError, TimeoutError) as err:
+                _LOGGER.warning(
+                    "Failed to connect to Ooler %s", self.address, exc_info=True
+                )
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="connect_failed",
+                    translation_placeholders={"address": self.address},
+                ) from err
+            await self._async_post_connect()
 
     async def _async_connect(self, *, stagger: bool = False) -> None:
         """Connect to the device, syncing settings on first connect."""
@@ -349,10 +349,8 @@ class OolerCoordinator:
                 fields,
             )
             self._last_subscription_mismatch = {
-                "timestamp": datetime.now(
-                    tz=ZoneInfo(self.hass.config.time_zone)
-                ).isoformat(),
-                "fields": event.detail["fields"],  # detail guaranteed non-None above
+                "timestamp": dt_util.now().isoformat(),
+                "fields": event.detail["fields"],
             }
         elif event.type is ConnectionEventType.SUBSCRIPTION_RECOVERED:
             _LOGGER.info(
@@ -396,9 +394,7 @@ class OolerCoordinator:
                 escalation,
             )
             self._last_setpoint_override_fixed = {
-                "timestamp": datetime.now(
-                    tz=ZoneInfo(self.hass.config.time_zone)
-                ).isoformat(),
+                "timestamp": dt_util.now().isoformat(),
                 "overrode": detail["overrode"],
                 "overrode_with": detail["overrode_with"],
                 "restored": restored,
@@ -408,7 +404,7 @@ class OolerCoordinator:
             assert event.detail is not None
             attempts = event.detail["attempts"]
             self._setpoint_override_unfixables += 1
-            now = datetime.now(tz=ZoneInfo(self.hass.config.time_zone))
+            now = dt_util.now()
             _LOGGER.warning(
                 "Ooler %s: could not stop the device overriding the setpoint "
                 "after %s attempts; the temperature you set is being discarded "
@@ -484,8 +480,7 @@ class OolerCoordinator:
     async def _async_sync_clock(self) -> None:
         """Sync the device clock to HA's timezone."""
         try:
-            tz = ZoneInfo(self.hass.config.time_zone)
-            await self.client.sync_clock(datetime.now(tz))
+            await self.client.sync_clock(dt_util.now())
         except (BleakError, TimeoutError):
             _LOGGER.debug(
                 "Failed to sync clock on Ooler %s", self.address, exc_info=True
@@ -591,7 +586,6 @@ class OolerCoordinator:
             if saved.nights == schedule.nights:
                 self._active_saved_name = name
                 return
-                return
 
     @property
     def tonight_schedule(self) -> SleepScheduleNight | None:
@@ -599,8 +593,7 @@ class OolerCoordinator:
         schedule = self.client.sleep_schedule
         if schedule is None or not schedule.nights:
             return None
-        tz = ZoneInfo(self.hass.config.time_zone)
-        today = datetime.now(tz).weekday()  # 0=Monday, 6=Sunday
+        today = dt_util.now().weekday()  # 0=Monday, 6=Sunday
         for night in schedule.nights:
             if night.day == today:
                 return night

@@ -909,12 +909,8 @@ async def test_coordinator_tonight_schedule_with_match() -> None:
     coordinator, client = make_coordinator()
     schedule = make_mock_schedule()
     client.sleep_schedule = schedule
-    coordinator.hass.config.time_zone = "UTC"
-
-    with patch("custom_components.ooler.coordinator.datetime") as mock_dt:
-        mock_now = MagicMock()
-        mock_now.weekday.return_value = 0  # Monday
-        mock_dt.now.return_value = mock_now
+    with patch("custom_components.ooler.coordinator.dt_util") as mock_dt:
+        mock_dt.now.return_value.weekday.return_value = 0  # Monday
         result = coordinator.tonight_schedule
 
     assert result is not None
@@ -926,12 +922,8 @@ async def test_coordinator_tonight_schedule_no_match() -> None:
     coordinator, client = make_coordinator()
     schedule = make_mock_schedule()  # Has day 0 and day 1
     client.sleep_schedule = schedule
-    coordinator.hass.config.time_zone = "UTC"
-
-    with patch("custom_components.ooler.coordinator.datetime") as mock_dt:
-        mock_now = MagicMock()
-        mock_now.weekday.return_value = 5  # Saturday
-        mock_dt.now.return_value = mock_now
+    with patch("custom_components.ooler.coordinator.dt_util") as mock_dt:
+        mock_dt.now.return_value.weekday.return_value = 5  # Saturday
         result = coordinator.tonight_schedule
 
     assert result is None
