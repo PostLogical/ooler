@@ -2,5 +2,5 @@
   "name": "Ooler",
   "render_readme": true,
   "hacs": "2.0.5",
-  "homeassistant": "2026.3.0"
+  "homeassistant": "2026.2.3"
 }
