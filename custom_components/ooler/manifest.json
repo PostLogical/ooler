@@ -19,7 +19,7 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/PostLogical/ooler/issues",
   "requirements": [
-    "ooler_ble_client==1.1.0b8"
+    "ooler_ble_client==1.1.0b10"
   ],
-  "version": "2026.8.0b7"
+  "version": "2026.9.0b1"
 }

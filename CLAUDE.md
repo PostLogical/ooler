@@ -112,5 +112,5 @@ The Ooler app does not read schedule state from the device; it assumes it is the
 
 - **ESP32 proxy slots**: Each Ooler uses 4 BLE notification slots. ESPHome provides 12; raw ESP-IDF provides 9. Multiple BLE devices on one proxy can exhaust slots.
 - **Single BLE connection**: The Ooler only supports one active BLE connection. The Ooler app and HA cannot connect simultaneously.
-- **Water level sensor**: Reports only 0%, 50%, or 100% — it's a very rough estimate.
+- **Water level sensor**: Reports only 1%, 50%, or 100% — a very rough estimate. The library (>=1.1.0b10) filters a placeholder `0` the firmware reports on ~1% of connects before it has a real value; `WATER_LEVEL_RANGE`/`ACTUAL_TEMP_RANGE_*` in the library's const gate these.
 - **Temperature range**: Valid temps are 54-116F, plus special values 45 (LO) and 120 (HI).

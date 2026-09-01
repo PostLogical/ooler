@@ -45,7 +45,7 @@ The Dock Pro (Ooler's successor) uses a cloud API and is not supported by this i
 | Fan mode | `climate` | Silent, Regular, or Boost |
 | Current temperature | `climate` | Live water temperature reading |
 | HVAC action | `climate` | Shows Heating, Cooling, or Idle |
-| Water level | `sensor` | Rough reservoir level (0%, 50%, or 100%) |
+| Water level | `sensor` | Rough reservoir level (1%, 50%, or 100%) |
 | Schedule tonight | `sensor` | Summary of tonight's schedule (bedtime, off-time, starting temp) with full details in attributes |
 | Saved schedule | `select` | Pick a saved schedule to load onto the device |
 | Sleep schedule | `switch` | Enable/disable the active sleep schedule on the device |
