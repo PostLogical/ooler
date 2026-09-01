@@ -369,6 +369,12 @@ class OolerCoordinator:
                 self._forced_reconnect_counts.get(trigger, 0) + 1
             )
         elif event.type is ConnectionEventType.SETPOINT_OVERRIDE_FIXED:
+            # The library runs this fix after *any* completed deep clean, not
+            # only on a confirmed override, so this event -- and the info log
+            # and fix_attempts below -- can report a "fix" the device never
+            # needed (e.g. fixed firmware, or a unit without the bug). Harmless,
+            # but the counter tracks completed deep cleans, not confirmed
+            # corrections. See CLAUDE.md "Setpoint-override firmware bug".
             assert event.detail is not None
             detail = event.detail
             attempt = detail["attempt"]

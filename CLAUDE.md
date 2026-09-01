@@ -101,6 +101,21 @@ The device stores one active schedule as a flat list of `(minute_of_week, temp_f
 
 The Ooler app does not read schedule state from the device; it assumes it is the sole arbiter. Schedules with per-night variation (different temps on different days) work with the device but the app may not display them correctly.
 
+## Setpoint-override firmware bug
+
+Some Ooler units have a firmware fault: after a **deep clean cycle runs to completion**, the device discards the user's setpoint and reverts to an older stored value shortly after it next powers off. The library detects and corrects this, surfacing it through connection events.
+
+### Library behavior — and an important caveat
+
+- After a completed deep clean the library applies a **0-second clean auto-fix** (power on → clean → re-write setpoint → power off) and emits `SETPOINT_OVERRIDE_FIXED`; if the correction can't be applied it emits `SETPOINT_OVERRIDE_UNFIXABLE`.
+- **The auto-fix is unconditional.** It runs after *every* completed deep clean, not only when a genuine setpoint divergence is observed. So `SETPOINT_OVERRIDE_FIXED` fires — and the coordinator logs "corrected it automatically" and increments `fix_attempts` — even when the device did not actually need fixing. On firmware that fixes this bug, or on units that never exhibited it, the auto-fix still runs and still logs a correction that was really a no-op. Mostly harmless (a brief pump run and a transient setpoint blip in the device's history, both called out in the log message), but the "fixed" log line and the `fix_attempts` diagnostic count **completed deep cleans, not confirmed corrections.**
+
+### Integration behavior
+
+- `_async_on_connection_event` (coordinator) handles both events: logs an info line on `SETPOINT_OVERRIDE_FIXED`, tracks counts/last-seen under the `setpoint_override` diagnostics key, and on `SETPOINT_OVERRIDE_UNFIXABLE` raises a device-named repair issue.
+- The repair issue is deleted before it is (re)created (`async_delete_issue` → `async_create_issue`) so an *Ignored* card re-notifies on the next recurrence; its link rides on `learn_more_url`, not in the translated description (hassfest forbids URLs in translation strings).
+- The integration makes no device-state judgment of its own here — it only reacts to the library's events.
+
 ## Testing
 
 - 242 tests, 100% coverage required (`pyproject.toml` fail-under=100)
