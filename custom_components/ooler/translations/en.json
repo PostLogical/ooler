@@ -3,10 +3,10 @@
     "flow_title": "{name}",
     "step": {
       "user": {
+        "description": "Choose a device to set up",
         "data": {
           "address": "Device"
-        },
-        "description": "Choose a device to set up"
+        }
       },
       "bluetooth_confirm": {
         "description": "Do you want to set up {name}?"
@@ -22,16 +22,24 @@
       "wait_for_pairing_mode": "To complete setup, put this device in pairing mode.\n\n### How to enter pairing mode\n1. Force quit the Ooler mobile app.\n2. Press and hold the power button on the device. Release when the Bluetooth icon starts blinking (approximately 5 seconds)."
     },
     "abort": {
-      "already_configured": "Device is already configured",
-      "already_in_progress": "Configuration flow is already in progress",
+      "not_supported": "Device not supported",
       "no_devices_found": "No devices found",
-      "not_supported": "Device not supported"
+      "already_in_progress": "Configuration flow is already in progress",
+      "already_configured": "Device is already configured"
     }
   },
   "entity": {
+    "select": {
+      "saved_schedule": {
+        "name": "Saved Schedule"
+      }
+    },
     "sensor": {
       "water_level": {
         "name": "Water Level"
+      },
+      "schedule_tonight": {
+        "name": "Schedule Tonight"
       }
     },
     "switch": {
@@ -100,6 +108,50 @@
     "clean_service": {
       "name": "Clean",
       "description": "Activates the UV light to clean the Ooler water system."
+    },
+    "get_schedule": {
+      "name": "Get schedule",
+      "description": "Return the current device schedule in set_schedule format."
+    },
+    "save_schedule": {
+      "name": "Save schedule",
+      "description": "Save the current device schedule with a name for later use.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "A name for this schedule (e.g., \"weekday\", \"vacation\")."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Delete schedule",
+      "description": "Delete a previously saved schedule.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to delete."
+        }
+      }
+    },
+    "load_schedule": {
+      "name": "Load schedule",
+      "description": "Write a previously saved schedule to the device.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The name of the saved schedule to load."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Write a schedule directly to the device.",
+      "fields": {
+        "nights": {
+          "name": "Nights",
+          "description": "List of night definitions with days, bedtime, off_time, temperature/temps, and optional warm_wake."
+        }
+      }
     }
   }
 }
