@@ -101,7 +101,7 @@
   "issues": {
     "setpoint_override_unfixable": {
       "title": "{name} was discarding your temperature setting",
-      "description": "As of {since}, your **{name}** was discarding the temperature you set and reverting to an older value shortly after it powered off — a firmware fault triggered by letting a deep clean cycle run all the way to completion. Home Assistant tried to correct it automatically several times, but the fix did not hold.\n\n## What to do\n\nOn the unit itself, start a deep clean cycle and then **cancel it after about 10 seconds** — do not let it finish. A completed clean is what causes this; a cancelled one clears it.\n\nIf the problem keeps happening after that, please report it at the [issue tracker](https://github.com/PostLogical/ooler/issues) and include the device address `{address}`."
+      "description": "As of {since}, your **{name}** was discarding the temperature you set and reverting to an older value shortly after it powered off — a firmware fault triggered by letting a deep clean cycle run all the way to completion. Home Assistant tried to correct it automatically several times, but the fix did not hold.\n\n## What to do\n\nOn the unit itself, start a deep clean cycle and then **cancel it after about 10 seconds** — do not let it finish. A completed clean is what causes this; a cancelled one clears it.\n\nIf the problem keeps happening after that, please report it using the Learn more link and include the device address `{address}`."
     }
   },
   "services": {

@@ -442,6 +442,7 @@ class OolerCoordinator:
                 f"setpoint_override_{self.address}",
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
+                learn_more_url="https://github.com/PostLogical/ooler/issues",
                 translation_key="setpoint_override_unfixable",
                 translation_placeholders={
                     "name": name,
