@@ -136,6 +136,8 @@ class OolerCoordinator:
         self._setpoint_override_unfixables: int = 0
         self._last_setpoint_override_fixed: dict[str, Any] | None = None
         self._last_setpoint_override_unfixable: dict[str, Any] | None = None
+        self._clean_asserted_while_off_count: int = 0
+        self._last_clean_asserted_while_off: dict[str, Any] | None = None
 
         self._store: Store[dict[str, Any]] = Store(
             hass,
@@ -456,6 +458,22 @@ class OolerCoordinator:
                     "since": now.strftime("%Y-%m-%d %H:%M %Z").strip(),
                 },
             )
+        elif event.type is ConnectionEventType.CLEAN_ASSERTED_WHILE_OFF:
+            # The device reported a clean running while powered off — seen once,
+            # latched for ~9 hours, cause unknown. Neither deep_clean nor
+            # uv_clean is set from it, so nothing user-visible records that it
+            # happened; this counter is the durable trace, and it rides along in
+            # a diagnostics download when someone reports the device acting odd.
+            #
+            # Counted, not accumulated: the library fires this on every poll for
+            # as long as the condition holds (~108 times over that 9 hours), and
+            # it already logs a warning each time.
+            assert event.detail is not None
+            self._clean_asserted_while_off_count += 1
+            self._last_clean_asserted_while_off = {
+                "timestamp": dt_util.now().isoformat(),
+                "set_temperature": event.detail["set_temperature"],
+            }
 
     @callback
     def _async_reconnect_check(self, _now: object = None) -> None:
@@ -517,6 +535,14 @@ class OolerCoordinator:
             "unfixables": self._setpoint_override_unfixables,
             "last_fixed": self._last_setpoint_override_fixed,
             "last_unfixable": self._last_setpoint_override_unfixable,
+        }
+
+    @property
+    def clean_asserted_while_off_diagnostics(self) -> dict[str, Any]:
+        """Return metrics for CLEAN seen asserted on a powered-off device."""
+        return {
+            "count": self._clean_asserted_while_off_count,
+            "last_seen": self._last_clean_asserted_while_off,
         }
 
     @property

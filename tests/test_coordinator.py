@@ -1347,6 +1347,38 @@ async def test_connection_event_forced_reconnect(hass: HomeAssistant) -> None:
     }
 
 
+async def test_connection_event_clean_asserted_while_off(hass: HomeAssistant) -> None:
+    """Test CLEAN_ASSERTED_WHILE_OFF is counted, not accumulated."""
+    client = make_mock_client()
+    entry = make_mock_entry()
+
+    with patch(
+        "custom_components.ooler.coordinator.OolerBLEDevice", return_value=client
+    ):
+        coordinator = OolerCoordinator(hass, entry)
+
+    assert coordinator.clean_asserted_while_off_diagnostics == {
+        "count": 0,
+        "last_seen": None,
+    }
+
+    # The library fires this on every poll for as long as the bit stays
+    # asserted, so repeated events must bump one counter rather than pile up.
+    for settemp in (68, 68, 75):
+        coordinator._async_on_connection_event(
+            ConnectionEvent(
+                type=ConnectionEventType.CLEAN_ASSERTED_WHILE_OFF,
+                timestamp=0.0,
+                detail={"set_temperature": settemp},
+            )
+        )
+
+    diagnostics = coordinator.clean_asserted_while_off_diagnostics
+    assert diagnostics["count"] == 3
+    assert diagnostics["last_seen"]["set_temperature"] == 75
+    assert diagnostics["last_seen"]["timestamp"]
+
+
 async def test_connection_event_setpoint_override_fixed(
     hass: HomeAssistant,
 ) -> None:

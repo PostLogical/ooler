@@ -1,6 +1,9 @@
 clean_service:
-  name: Clean Ooler
-  description: Activates the UV light to clean the Ooler water system.
+  name: Start deep clean
+  description: >-
+    Starts a deep clean cycle, powering the Ooler on if it is off. This is the
+    ~45 minute cycle you would start from the mobile app, not the unit's own
+    hourly water-treatment cycle, which cannot be started or stopped.
   target:
     entity:
       integration: ooler

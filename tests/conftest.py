@@ -51,7 +51,8 @@ def make_mock_state() -> MagicMock:
     state.actual_temperature = 74
     state.temperature_unit = "F"
     state.water_level = 80
-    state.clean = False
+    state.deep_clean = False
+    state.uv_clean = False
     state.connected = True
     return state
 
@@ -95,7 +96,7 @@ def make_mock_client(connected: bool = True) -> MagicMock:
     client.set_power = AsyncMock()
     client.set_mode = AsyncMock()
     client.set_temperature = AsyncMock()
-    client.set_clean = AsyncMock()
+    client.set_deep_clean = AsyncMock()
     client.set_temperature_unit = AsyncMock()
     client.set_ble_device = MagicMock()
     client.register_callback = MagicMock(return_value=lambda: None)

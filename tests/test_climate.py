@@ -195,12 +195,6 @@ class TestOolerClimate:
         entity.coordinator.client.state.set_temperature = 72
         assert entity.hvac_action == HVACAction.IDLE
 
-    def test_cleaning(self) -> None:
-        """Test cleaning property."""
-        entity = self._make_entity()
-        entity.coordinator.client.state.clean = True
-        assert entity.cleaning is True
-
     async def test_set_hvac_mode(self) -> None:
         """Test setting HVAC mode calls set_power."""
         entity = self._make_entity()
@@ -323,8 +317,8 @@ class TestOolerClimate:
 
         assert entity.extra_state_attributes is None
 
-    async def test_set_clean(self) -> None:
-        """Test starting clean cycle."""
+    async def test_start_deep_clean(self) -> None:
+        """Test the clean service starts a deep clean."""
         entity = self._make_entity()
-        await entity.async_set_clean()
-        entity.coordinator.client.set_clean.assert_called_once_with(True)
+        await entity.async_start_deep_clean()
+        entity.coordinator.client.set_deep_clean.assert_called_once_with(True)

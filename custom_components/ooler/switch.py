@@ -7,9 +7,12 @@ from typing import Any, override
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from ooler_ble_client import DeviceOffError
 
 from . import OolerConfigEntry
+from .const import DOMAIN
 from .coordinator import OolerCoordinator
 from .entity import OolerEntity
 
@@ -25,40 +28,56 @@ async def async_setup_entry(
     coordinator = config_entry.runtime_data
     async_add_entities(
         [
-            OolerCleaningSwitch(coordinator),
+            OolerDeepCleanSwitch(coordinator),
             OolerSleepScheduleSwitch(coordinator),
             OolerConnectionSwitch(coordinator),
         ]
     )
 
 
-class OolerCleaningSwitch(OolerEntity, SwitchEntity):
-    """Representation of Ooler Cleaning switch."""
+class OolerDeepCleanSwitch(OolerEntity, SwitchEntity):
+    """Representation of Ooler Deep Clean switch."""
 
-    _attr_translation_key = "cleaning"
+    _attr_translation_key = "deep_clean"
 
     def __init__(self, coordinator: OolerCoordinator) -> None:
         """Initialize the switch entity."""
         super().__init__(coordinator)
+        # Unchanged from when this entity was named "Cleaning": a new unique_id
+        # would orphan every existing entity, losing its history and breaking
+        # dashboards and automations that reference it.
         self._attr_unique_id = f"{coordinator.address}_cleaning_binary_sensor"
 
     @property
     @override
     def is_on(self) -> bool | None:
-        """Return true if the device is cleaning."""
-        return self.coordinator.client.state.clean
+        """
+        Return true if a deep clean is running.
+
+        Tracks deep_clean, not the raw CLEAN characteristic: the device also
+        asserts that bit for its own hourly UV water-treatment cycle, which
+        nobody can start or stop.
+        """
+        return self.coordinator.client.state.deep_clean
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Start cleaning the unit."""
+        """Start a deep clean, powering the unit on if it is off."""
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_clean(True)
+        await self.coordinator.client.set_deep_clean(True)
 
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Stop cleaning the unit."""
+        """Cancel a running deep clean."""
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_clean(False)
+        try:
+            await self.coordinator.client.set_deep_clean(False)
+        except DeviceOffError as err:
+            self._resync_after_refusal()
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="set_deep_clean_while_off",
+            ) from err
 
 
 class OolerSleepScheduleSwitch(OolerEntity, SwitchEntity):

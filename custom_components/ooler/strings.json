@@ -43,8 +43,8 @@
       }
     },
     "switch": {
-      "cleaning": {
-        "name": "Cleaning"
+      "deep_clean": {
+        "name": "Deep Clean"
       },
       "sleep_schedule": {
         "name": "Sleep Schedule"
@@ -96,6 +96,9 @@
     },
     "set_fan_mode_while_off": {
       "message": "Turn the Ooler on before changing the fan mode — it ignores changes while it is powered off."
+    },
+    "set_deep_clean_while_off": {
+      "message": "Turn the Ooler on before cancelling a deep clean — it ignores changes while it is powered off, and no clean can be running on a unit that is off."
     }
   },
   "issues": {
@@ -106,8 +109,8 @@
   },
   "services": {
     "clean_service": {
-      "name": "Clean",
-      "description": "Activates the UV light to clean the Ooler water system."
+      "name": "Start deep clean",
+      "description": "Starts a deep clean cycle, powering the Ooler on if it is off. This is the ~45 minute cycle you would start from the mobile app, not the unit's own hourly water-treatment cycle, which cannot be started or stopped."
     },
     "get_schedule": {
       "name": "Get schedule",

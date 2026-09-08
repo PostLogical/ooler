@@ -19,7 +19,7 @@
       }
     },
     "switch": {
-      "cleaning": {
+      "deep_clean": {
         "default": "mdi:vacuum"
       },
       "sleep_schedule": {

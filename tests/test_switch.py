@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
+from ooler_ble_client import DeviceOffError
 
 from custom_components.ooler.coordinator import OolerCoordinator
 from custom_components.ooler.switch import (
-    OolerCleaningSwitch,
     OolerConnectionSwitch,
+    OolerDeepCleanSwitch,
     OolerSleepScheduleSwitch,
     async_setup_entry,
 )
@@ -48,18 +51,18 @@ async def test_async_setup_entry() -> None:
     await async_setup_entry(hass, entry, mock_add_entities)
 
     assert len(added_entities) == 3
-    assert isinstance(added_entities[0], OolerCleaningSwitch)
+    assert isinstance(added_entities[0], OolerDeepCleanSwitch)
     assert isinstance(added_entities[1], OolerSleepScheduleSwitch)
     assert isinstance(added_entities[2], OolerConnectionSwitch)
 
 
-class TestOolerCleaningSwitch:
-    """Tests for the cleaning switch."""
+class TestOolerDeepCleanSwitch:
+    """Tests for the deep clean switch."""
 
-    def _make_entity(self, *, connected: bool = True) -> OolerCleaningSwitch:
+    def _make_entity(self, *, connected: bool = True) -> OolerDeepCleanSwitch:
         client = make_mock_client(connected=connected)
         coordinator = make_coordinator_with_client(client)
-        return OolerCleaningSwitch(coordinator)
+        return OolerDeepCleanSwitch(coordinator)
 
     def test_unique_id(self) -> None:
         """Test unique ID format."""
@@ -69,15 +72,22 @@ class TestOolerCleaningSwitch:
     def test_translation_key(self) -> None:
         """Test entity translation key."""
         entity = self._make_entity()
-        assert entity.translation_key == "cleaning"
+        assert entity.translation_key == "deep_clean"
 
     def test_is_on(self) -> None:
-        """Test is_on reflects clean state."""
+        """Test is_on reflects deep_clean, not the raw clean bit."""
         entity = self._make_entity()
-        entity.coordinator.client.state.clean = True
+        entity.coordinator.client.state.deep_clean = True
         assert entity.is_on is True
 
-        entity.coordinator.client.state.clean = False
+        entity.coordinator.client.state.deep_clean = False
+        assert entity.is_on is False
+
+    def test_is_on_ignores_uv_clean(self) -> None:
+        """Test the hourly UV cycle does not turn the switch on."""
+        entity = self._make_entity()
+        entity.coordinator.client.state.deep_clean = False
+        entity.coordinator.client.state.uv_clean = True
         assert entity.is_on is False
 
     def test_available(self) -> None:
@@ -89,16 +99,39 @@ class TestOolerCleaningSwitch:
         assert entity.available is False
 
     async def test_turn_on(self) -> None:
-        """Test turning on the cleaning switch."""
+        """Test turning on starts a deep clean."""
         entity = self._make_entity()
         await entity.async_turn_on()
-        entity.coordinator.client.set_clean.assert_called_once_with(True)
+        entity.coordinator.client.set_deep_clean.assert_called_once_with(True)
 
     async def test_turn_off(self) -> None:
-        """Test turning off the cleaning switch."""
+        """Test turning off cancels a deep clean."""
         entity = self._make_entity()
         await entity.async_turn_off()
-        entity.coordinator.client.set_clean.assert_called_once_with(False)
+        entity.coordinator.client.set_deep_clean.assert_called_once_with(False)
+
+    async def test_turn_off_while_off_raises(self) -> None:
+        """Test off-refusal maps to ServiceValidationError and resyncs the UI."""
+        entity = self._make_entity()
+        entity.hass = MagicMock()
+        entity.entity_id = "switch.tawaret_deep_clean"
+        entity.hass.states.get.return_value = MagicMock(state="off", attributes={})
+        entity.coordinator.client.set_deep_clean.side_effect = DeviceOffError("off")
+        with pytest.raises(ServiceValidationError):
+            await entity.async_turn_off()
+        _, kwargs = entity.hass.states.async_set.call_args
+        assert kwargs["force_update"] is True
+
+    async def test_turn_off_while_off_no_state(self) -> None:
+        """Test the resync is a no-op when the entity has no state yet."""
+        entity = self._make_entity()
+        entity.hass = MagicMock()
+        entity.entity_id = "switch.tawaret_deep_clean"
+        entity.hass.states.get.return_value = None
+        entity.coordinator.client.set_deep_clean.side_effect = DeviceOffError("off")
+        with pytest.raises(ServiceValidationError):
+            await entity.async_turn_off()
+        entity.hass.states.async_set.assert_not_called()
 
 
 class TestOolerSleepScheduleSwitch:

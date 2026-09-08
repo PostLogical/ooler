@@ -36,6 +36,22 @@ class OolerEntity(Entity):
         """Handle coordinator state update."""
         self.async_write_ha_state()
 
+    @callback
+    def _resync_after_refusal(self) -> None:
+        """Re-assert the true state after the device refused a write."""
+        # A refusal leaves HA state unchanged, so a plain async_write_ha_state()
+        # would emit only state_reported, not state_changed — and a card that
+        # optimistically showed the rejected value resets on state_changed. Force
+        # the event so the control snaps back to the device's real value; the
+        # entity's state is never wrong, only re-broadcast.
+        if (state := self.hass.states.get(self.entity_id)) is not None:
+            self.hass.states.async_set(
+                self.entity_id,
+                state.state,
+                state.attributes,
+                force_update=True,
+            )
+
     @override
     async def async_added_to_hass(self) -> None:
         """Register state update callback."""

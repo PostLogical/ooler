@@ -43,12 +43,16 @@ async def async_get_config_entry_diagnostics(
             "actual_temperature": state.actual_temperature,
             "temperature_unit": state.temperature_unit,
             "water_level": state.water_level,
-            "clean": state.clean,
+            "deep_clean": state.deep_clean,
+            "uv_clean": state.uv_clean,
         },
         "sleep_schedule": schedule_data,
         "connection_events": {
             "last_subscription_mismatch": coordinator.last_subscription_mismatch,
             "forced_reconnect_counts": dict(coordinator.forced_reconnect_counts),
             "setpoint_override": coordinator.setpoint_override_diagnostics,
+            "clean_asserted_while_off": (
+                coordinator.clean_asserted_while_off_diagnostics
+            ),
         },
     }

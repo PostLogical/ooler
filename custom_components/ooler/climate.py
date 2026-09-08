@@ -14,7 +14,7 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -46,10 +46,13 @@ async def async_setup_entry(
     async_add_entities([Ooler(coordinator)])
     platform = entity_platform.async_get_current_platform()
 
+    # The service id stays "clean_service" even though it now names a deep
+    # clean explicitly. Renaming it would break users' existing automations
+    # silently at runtime, which is a worse trade than a slightly stale id.
     platform.async_register_entity_service(
         SERVICE_CLEAN,
         {},
-        "async_set_clean",
+        "async_start_deep_clean",
     )
 
 
@@ -195,11 +198,6 @@ class Ooler(OolerEntity, ClimateEntity):
             "sleep_schedule_nights": nights,
         }
 
-    @property
-    def cleaning(self) -> bool | None:
-        """Return if the unit is cleaning itself."""
-        return self.coordinator.client.state.clean
-
     @override
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVACMode (On/Off)."""
@@ -245,23 +243,7 @@ class Ooler(OolerEntity, ClimateEntity):
                 translation_key="set_temperature_while_off",
             ) from err
 
-    @callback
-    def _resync_after_refusal(self) -> None:
-        """Re-assert the true state after the device refused a write."""
-        # A refusal leaves HA state unchanged, so a plain async_write_ha_state()
-        # would emit only state_reported, not state_changed — and a card that
-        # optimistically showed the rejected value resets on state_changed. Force
-        # the event so the control snaps back to the device's real value; the
-        # entity's state is never wrong, only re-broadcast.
-        if (state := self.hass.states.get(self.entity_id)) is not None:
-            self.hass.states.async_set(
-                self.entity_id,
-                state.state,
-                state.attributes,
-                force_update=True,
-            )
-
-    async def async_set_clean(self) -> None:
-        """Start cleaning the unit."""
+    async def async_start_deep_clean(self) -> None:
+        """Start a deep clean, powering the unit on if it is off."""
         await self.coordinator.async_ensure_connected()
-        await self.coordinator.client.set_clean(True)
+        await self.coordinator.client.set_deep_clean(True)

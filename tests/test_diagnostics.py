@@ -40,7 +40,8 @@ async def test_diagnostics(hass) -> None:
     assert result["device_state"]["actual_temperature"] == 74
     assert result["device_state"]["temperature_unit"] == "F"
     assert result["device_state"]["water_level"] == 80
-    assert result["device_state"]["clean"] is False
+    assert result["device_state"]["deep_clean"] is False
+    assert result["device_state"]["uv_clean"] is False
     assert result["sleep_schedule"]["active"] is False
     assert result["connection_events"]["last_subscription_mismatch"] is None
     assert result["connection_events"]["forced_reconnect_counts"] == {}
