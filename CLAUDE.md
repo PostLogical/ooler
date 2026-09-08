@@ -12,7 +12,7 @@ This is a Home Assistant custom component (`custom_components/ooler/`) that cont
 - `climate.py` — Climate entity (thermostat control: power, temperature, fan mode).
 - `sensor.py` — Two sensors: Water level (%) and Schedule Tonight (tonight's sleep schedule summary with detailed attributes).
 - `select.py` — Saved Schedule select entity. Lets users pick from named saved schedules to load onto the device.
-- `switch.py` — Three switches: Cleaning (UV light), Sleep Schedule (toggle active schedule on/off with caching), and Bluetooth Connection (enable/disable auto-connect).
+- `switch.py` — Three switches: Deep Clean (start/cancel a deep clean), Sleep Schedule (toggle active schedule on/off with caching), and Bluetooth Connection (enable/disable auto-connect).
 - `services.py` — Service handlers: `get_schedule`, `set_schedule`, `save_schedule`, `load_schedule`, `delete_schedule`, `clean_service`. Supports both device_id and entity_id targeting.
 - `services.yaml` — Service definitions for the UI.
 - `config_flow.py` — Bluetooth discovery, GATT connection verification, reconfigure flow.
@@ -24,11 +24,11 @@ This is a Home Assistant custom component (`custom_components/ooler/`) that cont
 The integration never touches BLE/GATT directly. All BLE operations go through `ooler_ble_client`:
 
 - `client.connect()` / `client.stop()` — connection lifecycle
-- `client.set_power()`, `client.set_temperature()`, `client.set_mode()`, `client.set_clean()` — device commands
+- `client.set_power()`, `client.set_temperature()`, `client.set_mode()`, `client.set_deep_clean()` — device commands
 - `client.set_temperature_unit()` — toggle device display unit
 - `client.async_poll()` — read all characteristics (also runs poll/state consistency detection)
 - `client.register_callback()` — state change notifications
-- `client.register_connection_event_callback()` — connection event notifications (mismatch, recovery, forced reconnect)
+- `client.register_connection_event_callback()` — connection event notifications (mismatch, recovery, forced reconnect, setpoint override, clean-asserted-while-off)
 - `client.set_ble_device()` — update the BLEDevice for proxy routing
 - `client.read_sleep_schedule()` — read schedule from device (called once on connect)
 - `client.set_sleep_schedule()` / `client.clear_sleep_schedule()` — write/clear schedule
@@ -101,6 +101,26 @@ The device stores one active schedule as a flat list of `(minute_of_week, temp_f
 
 The Ooler app does not read schedule state from the device; it assumes it is the sole arbiter. Schedules with per-night variation (different temps on different days) work with the device but the app may not display them correctly.
 
+## Deep clean vs. UV clean
+
+The device's `CLEAN` characteristic carries **two** states, and library >=1.1.0b12 splits them:
+
+- `state.deep_clean` — the ~45 minute cycle a person starts (`set_deep_clean(True)`, or the vendor app). It forces `SET_TEMP` to 75F, ends by powering the unit off, and is the one that arms the setpoint-override bug. The library derives it from characteristic state, not from provenance, so an app-started clean is recognised on the first poll after reconnect.
+- `state.uv_clean` — a cycle the device runs by itself: ~3-5 minutes once per hour of runtime, only while powered, with no client involvement and no way to start or stop it. **There is no setter and there will not be one.** The *name* is an inference: the Ooler manual describes an automatic "integrated water treatment system, which includes a UV light", which fits. What the unit physically does during the window is **not established** — do not write user-facing copy that claims it (e.g. that cooling pauses). The timing, the power gate and the absence of a forced setpoint are measured; the identification is not.
+
+Both read false when `CLEAN` is asserted on a **powered-off** unit (observed once, latched ~9 hours, cause unknown). That case emits `CLEAN_ASSERTED_WHILE_OFF` on every poll while it holds, which the coordinator **counts** (never accumulates) under the `clean_asserted_while_off` diagnostics key — the only durable trace, since neither state field records it.
+
+Integration notes:
+
+- The Deep Clean switch binds to `deep_clean` / `set_deep_clean`. Before this split it tracked the raw bit and flicked on for one poll every hour.
+- Its `unique_id` is still `{address}_cleaning_binary_sensor`. Do not change it — that would orphan every existing entity.
+- `uv_clean` is deliberately **not** exposed as an entity. It is not actionable, not controllable, and an hourly-toggling entity is noise; it lives in the state object and diagnostics only. The README explains the cycle to users instead.
+- `set_deep_clean(False)` on a powered-off unit raises `DeviceOffError` → `ServiceValidationError` (`set_deep_clean_while_off`), same pattern as `set_temperature` / `set_mode`.
+- The `ooler.clean_service` service id is unchanged even though it now says "deep clean" — renaming it would silently break users' automations at runtime.
+- A UV cycle misread as a deep clean (only possible when the user's setpoint is already 75) cannot trigger the setpoint-override auto-fix: completion is keyed on a power-off while `deep_clean` is true, and a misread clears while the unit is still powered.
+
+Full evidence for the split: `notes/ooler_clean_flag_20260905/`. Integration-side design decisions: `notes/clean_split_integration_reply.md`.
+
 ## Setpoint-override firmware bug
 
 Some Ooler units have a firmware fault: after a **deep clean cycle runs to completion**, the device discards the user's setpoint and reverts to an older stored value shortly after it next powers off. The library detects and corrects this, surfacing it through connection events.
@@ -118,7 +138,7 @@ Some Ooler units have a firmware fault: after a **deep clean cycle runs to compl
 
 ## Testing
 
-- 242 tests, 100% coverage required (`pyproject.toml` fail-under=100)
+- 259 tests, 100% coverage required (`pyproject.toml` fail-under=100)
 - Tests use `MagicMock`/`AsyncMock` for the library client
 - `make_mock_hass()` closes coroutines passed to `async_create_task` to prevent unawaited coroutine warnings
 - Run: `pytest tests/ --cov=custom_components/ooler --cov-report=term-missing`

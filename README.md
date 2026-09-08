@@ -24,7 +24,7 @@ This custom Home Assistant component controls your Ooler Sleep System over a Blu
 | `climate` | Control power, fan speed, and temperature. Shows current temp and HVAC action.  |
 | `sensor`  | Water level (100%, 50%, or 1%) and tonight's sleep schedule summary.            |
 | `select`  | Choose from saved sleep schedules to load onto the device.                      |
-| `switch`  | Toggle cleaning mode, sleep schedule, or Bluetooth connection.                  |
+| `switch`  | Start/cancel a deep clean, toggle the sleep schedule, or the Bluetooth link.    |
 
 ### Temperature units
 
@@ -49,8 +49,18 @@ The Dock Pro (Ooler's successor) uses a cloud API and is not supported by this i
 | Schedule tonight | `sensor` | Summary of tonight's schedule (bedtime, off-time, starting temp) with full details in attributes |
 | Saved schedule | `select` | Pick a saved schedule to load onto the device |
 | Sleep schedule | `switch` | Enable/disable the active sleep schedule on the device |
-| Cleaning mode | `switch` | Start/stop UV cleaning cycle |
+| Deep clean | `switch` | Start or cancel a deep clean cycle |
 | Bluetooth connection | `switch` | Manually disconnect to free the connection for the Ooler app |
+
+### Cleaning: two different cycles
+
+The Ooler reports cleaning over a single Bluetooth flag, but it sets that flag for two different things — which is why this needs explaining.
+
+**Deep clean** is the roughly 45-minute cycle you start yourself, from the mobile app or from the **Deep clean** switch here. It forces the setpoint to 75F for its duration and ends by powering the unit off. This is the one you control.
+
+**A short cycle the unit runs by itself**, for 3-5 minutes about once per hour of runtime, and only while the unit is powered. Nothing starts it and nothing can stop it — not the app, not Home Assistant. The Ooler manual describes an "integrated water treatment system, which includes a UV light" that runs automatically, so this is very likely that; we have not confirmed it, and what the unit is physically doing during those minutes is not something the Bluetooth interface tells us.
+
+The Deep clean switch tracks **only** the deep clean, so it will not flicker on every hour. If you used this integration before 2026.9.0b3, the switch turned itself on for one poll every hour; that was this second cycle being reported as a deep clean, and it is fixed.
 
 ### Sleep schedules
 
@@ -179,7 +189,7 @@ Schedule services target any Ooler entity (e.g., the climate entity). Device and
 
 ### Data updates
 
-The integration maintains a persistent BLE GATT connection to each Ooler device. State updates (power, temperature, mode) are pushed in real-time via GATT notifications. Water level and cleaning status are polled every 5 minutes. The sleep schedule is read once on connect (since only one BLE client can be connected at a time, it can't change while HA is connected).
+The integration maintains a persistent BLE GATT connection to each Ooler device. State updates (power, temperature, mode) are pushed in real-time via GATT notifications. Water level and clean status are polled every 5 minutes. The sleep schedule is read once on connect (since only one BLE client can be connected at a time, it can't change while HA is connected).
 
 If the connection drops, the integration reconnects automatically -- both immediately on disconnect and via a 60-second periodic fallback. When multiple devices reconnect simultaneously (e.g., after a proxy restart), attempts are staggered to avoid overwhelming the proxy's connection slots.
 
