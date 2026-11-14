@@ -117,6 +117,9 @@ class OolerCoordinator:
 
         self._listeners: list[Callable[[], None]] = []
         self._connect_task: asyncio.Task[None] | None = None
+        # Auto-reconnect retries every minute while the device is unreachable,
+        # so a failure is logged once and then at debug until it reconnects.
+        self._unavailable_logged: bool = False
         self._unit_synced: bool = False
         self._cached_sleep_schedule: OolerSleepSchedule | None = None
         self._ha_unit: TemperatureUnit = (
@@ -246,7 +249,8 @@ class OolerCoordinator:
             try:
                 await self.client.connect()
             except (BleakError, TimeoutError) as err:
-                _LOGGER.warning(
+                # The raised error already reports this to the user.
+                _LOGGER.debug(
                     "Failed to connect to Ooler %s", self.address, exc_info=True
                 )
                 raise HomeAssistantError(
@@ -286,13 +290,24 @@ class OolerCoordinator:
             else:
                 self._unit_synced = True
             await self._async_post_connect()
-        except (BleakError, TimeoutError):
-            _LOGGER.warning(
-                "Failed to connect to Ooler %s", self.address, exc_info=True
-            )
+        except (BleakError, TimeoutError) as err:
+            if self._unavailable_logged:
+                _LOGGER.debug(
+                    "Failed to connect to Ooler %s", self.address, exc_info=True
+                )
+            else:
+                _LOGGER.info(
+                    "Ooler %s is unavailable: %s",
+                    self.address,
+                    str(err) or type(err).__name__,
+                )
+                self._unavailable_logged = True
 
     async def _async_post_connect(self) -> None:
         """Read sleep schedule and sync clock after connecting."""
+        if self._unavailable_logged:
+            _LOGGER.info("Ooler %s is available again", self.address)
+            self._unavailable_logged = False
         try:
             schedule = await self.client.read_sleep_schedule()
             if schedule.nights:

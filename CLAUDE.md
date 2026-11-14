@@ -49,6 +49,10 @@ Three mechanisms ensure reconnection when `connection_enabled` is `True`:
 2. **Library disconnect callback** (`_async_on_state_change`) — fires immediately when the connection drops. Schedules a staggered reconnect.
 3. **Periodic timer** (`_async_reconnect_check`) — fires every 60 seconds. Refreshes BLEDevice from HA cache and attempts reconnect if disconnected.
 
+### Connect-failure logging
+
+Auto-reconnect retries every 60 seconds while the device is unreachable, so `_async_connect` logs the first failure once at info (`_unavailable_logged`), logs later failures at debug, and logs once more when `_async_post_connect` runs after a successful connect. `async_ensure_connected` logs only at debug, because the `HomeAssistantError` it raises already reports the failure.
+
 ### Connection deduplication
 
 - `_schedule_connect()` checks `_connect_task.done()` to prevent duplicate tasks.
@@ -138,7 +142,7 @@ Some Ooler units have a firmware fault: after a **deep clean cycle runs to compl
 
 ## Testing
 
-- 259 tests, 100% coverage required (`pyproject.toml` fail-under=100)
+- 262 tests, 100% coverage required (`pyproject.toml` fail-under=100)
 - Tests use `MagicMock`/`AsyncMock` for the library client
 - `make_mock_hass()` closes coroutines passed to `async_create_task` to prevent unawaited coroutine warnings
 - Run: `pytest tests/ --cov=custom_components/ooler --cov-report=term-missing`

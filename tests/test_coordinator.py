@@ -118,6 +118,49 @@ async def test_coordinator_connect_failure() -> None:
     assert coordinator._unit_synced is False
 
 
+async def test_coordinator_connect_failure_logs_once_then_recovery(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test repeated connect failures log once, then once more on recovery."""
+    coordinator, client = make_coordinator(connected=False)
+    client.connect = AsyncMock(side_effect=BleakError("proxy offline"))
+
+    with caplog.at_level(logging.DEBUG):
+        await coordinator._async_connect()
+        await coordinator._async_connect()
+        await coordinator._async_connect()
+
+    unavailable = [r for r in caplog.records if "is unavailable" in r.message]
+    assert len(unavailable) == 1
+    assert unavailable[0].levelno == logging.INFO
+    assert "proxy offline" in unavailable[0].message
+    # Nothing above debug carries a traceback while the device stays down.
+    assert all(r.exc_info is None for r in caplog.records if r.levelno > logging.DEBUG)
+    assert sum(r.exc_info is not None for r in caplog.records) == 2
+
+    caplog.clear()
+    client.connect = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await coordinator._async_connect()
+        await coordinator._async_connect()
+
+    assert caplog.text.count("is available again") == 1
+    assert coordinator._unavailable_logged is False
+
+
+async def test_coordinator_connect_failure_names_bare_timeout(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test a message-less TimeoutError is still named in the unavailable log."""
+    coordinator, client = make_coordinator(connected=False)
+    client.connect = AsyncMock(side_effect=TimeoutError)
+
+    with caplog.at_level(logging.INFO):
+        await coordinator._async_connect()
+
+    assert "is unavailable: TimeoutError" in caplog.text
+
+
 async def test_coordinator_connect_unit_sync_deferred_when_off() -> None:
     """Test the unit sync defers (no crash, stays unsynced) if the device is off."""
     coordinator, client = make_coordinator(connected=False)
@@ -140,6 +183,19 @@ async def test_coordinator_ensure_connected_raises() -> None:
 
     with pytest.raises(HomeAssistantError):
         await coordinator.async_ensure_connected()
+
+
+async def test_coordinator_ensure_connected_failure_logs_only_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test the raised error is the only report above debug."""
+    coordinator, client = make_coordinator(connected=False)
+    client.connect = AsyncMock(side_effect=TimeoutError)
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(HomeAssistantError):
+        await coordinator.async_ensure_connected()
+
+    assert all(r.levelno == logging.DEBUG for r in caplog.records)
 
 
 async def test_coordinator_ensure_connected_already_connected() -> None:
