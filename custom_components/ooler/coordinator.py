@@ -466,8 +466,8 @@ class OolerCoordinator:
             # a diagnostics download when someone reports the device acting odd.
             #
             # Counted, not accumulated: the library fires this on every poll for
-            # as long as the condition holds (~108 times over that 9 hours), and
-            # it already logs a warning each time.
+            # as long as the condition holds (~108 times over that 9 hours). It
+            # logs its own warning once per occurrence, then debug while it lasts.
             assert event.detail is not None
             self._clean_asserted_while_off_count += 1
             self._last_clean_asserted_while_off = {

@@ -33,7 +33,7 @@ The integration never touches BLE/GATT directly. All BLE operations go through `
 - `client.read_sleep_schedule()` — read schedule from device (called once on connect)
 - `client.set_sleep_schedule()` / `client.clear_sleep_schedule()` — write/clear schedule
 - `client.sync_clock()` — sync device clock to HA timezone
-- `client.state` — `OolerBLEState` with current device state
+- `client.state` — `OolerBLEState` with current device state. Mutated in place by both notifications and polls (>=1.1.0b15), so never keep a reference to compare against a later value; always read the live fields.
 - `client.sleep_schedule` — `OolerSleepSchedule` with current schedule (read on connect only)
 - `client.is_connected` — connection status
 
@@ -73,7 +73,7 @@ Reconnect delay is deterministic per device (derived from MAC address hash, 0.5-
 
 ### BLE proxy resilience
 
-ESPHome Bluetooth proxies can drop BLE notification subscriptions without disconnecting. The library's poll/state consistency detector (in `async_poll()`) compares fresh GATT reads against cached state on four notify-backed fields. On mismatch:
+The library's poll/state consistency detector (in `async_poll()`) compares fresh GATT reads against cached state on four notify-backed fields. It was built for ESPHome proxies dropping notification subscriptions without disconnecting, but before library 1.1.0b15 most mismatches were a false positive: a notification landing during the poll's reads was flagged and then overwritten by the poll's older value. b15 compares and applies each field right after its own read, so a mismatch now means the device changed a value without notifying it (a dropped subscription being one cause), or a rare millisecond race where a notification and a read response arrive together. Mismatches should be rare, and a forced reconnect (two polls in a row) is real evidence worth investigating. On mismatch:
 
 1. **Tier 1**: Re-subscribe notifications on existing connection (`SUBSCRIPTION_MISMATCH` → `SUBSCRIPTION_RECOVERED`)
 2. **Tier 2**: Full forced reconnect if next poll still shows mismatch (`FORCED_RECONNECT`)
